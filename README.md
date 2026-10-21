@@ -11,7 +11,7 @@ The result includes a chart, missing-value counts, method, source hashes and a s
 
 **Early release.** English is the default interface language. Kazakh, Korean and Simplified Chinese are available from the language selector. Your selection is remembered in your browser; imported text and column names stay unchanged. Documentation is in English. Windows has been tested locally; automated checks also run on Linux. This is a single-user application served on your own computer.
 
-![Residual home screen on a fresh local workspace](docs/home.jpg)
+![Residual English interface on a fresh local workspace](docs/home-en.jpg)
 
 ## Try it
 
