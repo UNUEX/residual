@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "residual-housing": {
+      "command": "C:/PATH/TO/residual/.venv/Scripts/python.exe",
+      "args": [
+        "-X",
+        "utf8",
+        "-m",
+        "src.mcp_server",
+        "--data-dir",
+        "C:/PATH/TO/YOUR/DATA"
+      ],
+      "cwd": "C:/PATH/TO/residual",
+      "env": {
+        "PYTHONPATH": "C:/PATH/TO/residual"
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+RESIDUAL QUICK START
+
+1. Install Python 3.11–3.13 and enable Add Python to PATH.
+2. Open start_residual.cmd. First setup creates .venv and installs dependencies.
+3. Open setup_local_ai.cmd once for local Ollama and qwen3:1.7b, or configure a compatible API in the Models tab.
+4. Open http://127.0.0.1:8766/.
+5. Import CSV, TSV, Excel, or an HTML table. Choose its sheet/table and header row.
+6. Confirm column roles, units, period, observation unit, and missing codes.
+7. Ask for a mean, median, or sum. Review and confirm the proposed plan.
+8. Open the saved report and download its result or reproduction files.
+
+The interface is currently in Russian. The sample buttons load small invented tables from examples/, not survey records. Your own imported files and reports stay in private_outputs/ and are excluded from Git.
+
+Stop the application with stop_residual.cmd. For setup details and troubleshooting, read LOCAL_START.txt.

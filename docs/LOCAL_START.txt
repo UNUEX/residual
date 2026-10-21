@@ -1,0 +1,41 @@
+RESIDUAL LOCAL SETUP
+
+Requirements
+Python 3.11–3.13; a writable application folder; internet access for initial dependency/model installation. requirements.txt contains the application dependencies. A hosted server is not required.
+
+Windows
+Open start_residual.cmd. The launcher creates .venv, installs missing dependencies, starts the server on 127.0.0.1:8766, and opens the browser. Use stop_residual.cmd to stop it.
+
+For another port:
+powershell -File start_residual.ps1 -Port 8767
+
+For launch without opening a browser:
+powershell -File start_residual.ps1 -NoBrowser
+
+Local model
+Open setup_local_ai.cmd once. It installs a portable Ollama runtime and the local qwen3:1.7b model. The CPU setup needs approximately 1.5 GB of downloads and 3 GB of disk space; inference speed depends on your computer. Existing portable installations are reused.
+
+Alternatively install Ollama yourself, run ollama pull qwen3:1.7b, and select the local endpoint in Models. A compatible external HTTPS API can be configured explicitly. The program does not switch to a cloud model automatically.
+
+Manual application launch
+python -m pip install -r requirements.txt
+python -m src.serve --port 8766
+
+macOS/Linux
+bash start_residual.sh
+Install Ollama separately and run ollama pull qwen3:1.7b. Stop the foreground server with Ctrl+C. These platforms have not been independently verified.
+
+Storage
+private_outputs/ contains imported files, local dataset metadata, plans, reports, model configuration without API keys, downloaded model runtime, and logs. This directory is ignored by Git. Removing it discards local application state and may require reinstalling the portable model; keep a backup of data you need.
+
+Examples
+examples/import/ contains invented schools and budget tables. examples/demo/ contains invented housing records. The application also starts with no data and accepts your own supported files. Input archives and completed analyses are not needed for startup.
+
+Additional modules
+/housing/ accepts two tables matching the fixed housing/roster schema. /quality/ provides the review queue. They retain their own methodological limits; see methodology.md and mvp_guide.md. Supplying --data-dir explicitly is optional and only affects the fixed-schema module.
+
+MCP
+Install requirements-mcp.txt and use docs/mcp_local_example.json with your own local paths. MCP currently supports only the fixed housing calculation, not general table import. The external MCP client controls its model and any onward transmission.
+
+Troubleshooting
+If the port is busy, stop the old server or select another port. Inspect private_outputs/server-8766.stderr.log for startup errors. An unavailable model produces an error; it is not replaced with a fake answer. Review missing-value codes and column roles if a calculation differs from expectations.

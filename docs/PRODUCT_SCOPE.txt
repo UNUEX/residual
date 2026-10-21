@@ -1,0 +1,22 @@
+RESIDUAL APPLICATION SCOPE
+
+Main workflow
+One local user imports a table, confirms its schema, asks a question, reviews the model-proposed plan, and explicitly confirms a deterministic calculation. The result contains a table/chart, coverage, missing counts, methodology, limitations, and source hashes.
+
+Input
+CSV/TSV, .xlsx/.xls, and HTML/HTM tables. Select a sheet/table and header row. Limits: 10 MiB, 50,000 rows, 100 source columns, up to 15 selected columns. Code files are not executed on import.
+
+Operations
+Mean, median, or sum; 1–5 numeric measures; optional grouping by one category; up to 30 groups. Missing codes are confirmed per column. Identifiers are not measures. Unweighted descriptive statistics only.
+
+Exports
+HTML, result CSV, JSON, standalone trusted Python, and the normalized source CSV. Reproduction checks the source hash and does not need a model.
+
+Models
+Local Ollama or an explicitly configured compatible HTTPS API. No automatic fallback. The planner receives the question and schema metadata, not source rows or results. Questions and metadata may still contain sensitive information.
+
+Additional implementation
+Fixed-schema housing analysis, a quality-review queue, evaluation utilities, and a read-only housing MCP bridge remain available. These modules are separate from the main table workflow. Small fictional fixtures support samples and automated tests.
+
+Not implemented
+General joins, row filters, survey weights, uncertainty estimates, forecasts, disclosure control, organization roles, multi-user access, and messaging integrations. Runtime data and newly generated reports stay in ignored local storage. No empirical promise of time savings or general model accuracy is made.
