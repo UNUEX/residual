@@ -15,6 +15,7 @@ from urllib.request import Request, urlopen
 from src.model_provider import ProviderError
 from src.serve import Handler, ROOT, make_server
 from src.table_import import inspect_file
+from src.localization import LANGUAGES, tr, using_language
 
 
 CSV = "ID,Category,Value,Private note\n0001,North,10,PRIVATE-HTTP-ROW-ONE\n0002,North,30,PRIVATE-HTTP-ROW-TWO\n0003,South,5,PRIVATE-HTTP-ROW-THREE\n"
@@ -175,6 +176,31 @@ class TabularHTTPTests(unittest.TestCase):
             self.call("/api/tables/inspect", headers={"Content-Type": "text/plain"}, raw=b"{}")
         self.assertEqual(caught.exception.code, 415)
         self.assertEqual(self.call("/api/tables/state")[0]["datasets"], [])
+
+    def test_language_headers_cookies_exports_and_request_isolation(self):
+        _, _, dataset = self.upload_and_register()
+        _, report, _ = self.make_report(dataset)
+        baseline = report['table']
+        for language in LANGUAGES:
+            headers = {'X-Residual-Language': language}
+            with self.subTest(language=language):
+                with self.assertRaises(HTTPError) as caught:
+                    self.call('/missing-page', headers=headers)
+                with using_language(language):
+                    self.assertEqual(json.loads(caught.exception.read())['error'], tr('Page not found.'))
+                raw, _ = self.call('/api/tables/export?id=' + report['id'] + '&format=html', headers=headers)
+                self.assertIn(('<html lang="' + language + '">').encode(), raw)
+                current, _ = self.call('/api/tables/report?id=' + report['id'], headers=headers)
+                self.assertEqual(current['table'], baseline)
+                self.assertEqual(current['question'], report['question'])
+        raw, _ = self.call('/', headers={'Cookie': 'residual_language=ko'})
+        self.assertIn(b'<html lang="ko">', raw)
+        raw, _ = self.call('/?lang=kk', headers={'X-Residual-Language': 'zh-CN', 'Cookie': 'residual_language=ko'})
+        self.assertIn(b'<html lang="kk">', raw)
+        for headers in ({}, {'X-Residual-Language': 'ru'}):
+            with self.assertRaises(HTTPError) as caught:
+                self.call('/missing-page', headers=headers)
+            self.assertEqual(json.loads(caught.exception.read())['error'], 'Page not found.')
 
     def test_model_failure_returns_502_without_fabricated_plan_or_report(self):
         _, _, dataset = self.upload_and_register()

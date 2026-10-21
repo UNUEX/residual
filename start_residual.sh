@@ -33,7 +33,7 @@ port=int(sys.argv[1])
 try:
     with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health",timeout=2) as r:
         health=json.load(r)
-    if health.get("app")=="residual" and health.get("version")=="0.4" and health.get("ok"):
+    if health.get("app")=="residual" and health.get("version")=="0.5" and health.get("ok"):
         print(f"Residual is already running: http://127.0.0.1:{port}")
         sys.exit(10)
 except (OSError,ValueError):

@@ -17,7 +17,7 @@ For a new feature, describe the task it should help a user complete. Discuss lar
 5. For interface changes, check the complete workflow in the browser. Describe the visible effect and include a screenshot when helpful.
 6. Open a pull request explaining the problem, change and validation.
 
-Use English for new documentation, issues and pull request descriptions. The current interface and several regression fixtures are in Russian; localization is planned. Do not translate domain-sensitive parsing rules without checking their tests.
+Use English for new documentation, issues and pull request descriptions. The interface supports English, Kazakh, Korean and Simplified Chinese. Keep keys aligned across `app/locales/` and `src/locales/`, run `node --test tests/i18n.test.cjs`, and test the changed screen. Do not translate imported values or change domain-sensitive parsing rules without checking their tests. Some regression fixtures intentionally contain other scripts to verify that user text is preserved.
 
 ## Project constraints
 

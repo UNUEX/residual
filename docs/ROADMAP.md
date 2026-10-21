@@ -4,7 +4,7 @@ This is a direction for future work, not a list of available features or release
 
 ## First priorities
 
-- English interface localization with coverage for messages, reports and input-validation errors.
+- Native-speaker review of Kazakh, Korean and Simplified Chinese translations, including statistical terminology.
 - Feedback on the complete import, schema review, plan approval and reproduction workflow.
 - More import regression cases for spreadsheet structures, using invented examples.
 - Accessible keyboard navigation and clearer error recovery.

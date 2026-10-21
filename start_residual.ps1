@@ -24,7 +24,7 @@ function Start-PortableModelIfPresent {
 
 try {
     $taskHealth = Get-ResidualHealth
-    if ($taskHealth.ok -and $taskHealth.app -eq 'residual' -and $taskHealth.version -eq '0.4') {
+    if ($taskHealth.ok -and $taskHealth.app -eq 'residual' -and $taskHealth.version -eq '0.5') {
         Start-PortableModelIfPresent
         Write-Host "Residual is already running: $taskUrl"
         if (-not $NoBrowser) { Start-Process $taskUrl }
@@ -90,7 +90,7 @@ try {
     Set-Content -LiteralPath (Join-Path $taskLogs $taskPidName) -Value $taskProcess.Id -Encoding ASCII
     for ($taskTry = 0; $taskTry -lt 120; $taskTry++) {
         $taskHealth = Get-ResidualHealth
-        if ($taskHealth.ok -and $taskHealth.app -eq 'residual' -and $taskHealth.version -eq '0.4') {
+        if ($taskHealth.ok -and $taskHealth.app -eq 'residual' -and $taskHealth.version -eq '0.5') {
             Write-Host "Ready: $taskUrl"
             Write-Host 'If the local model is not installed yet: open setup_local_ai.cmd once.'
             Write-Host 'To stop the app: open stop_residual.cmd. Your data will remain saved.'

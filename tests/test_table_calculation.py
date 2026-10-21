@@ -107,34 +107,34 @@ class TableCalculationTests(unittest.TestCase):
     def test_summary_answers_from_calculated_groups_and_per_metric_counts(self):
         result = calculate(self.rows, self.columns, dict(self.plan, reason="Модель выдумала итог: 9999999"))
         self.assertEqual(result["summary"][0],
-            "Среднее арифметическое «Доход»: Север — -2,5 тенге (2 из 2 строк); Юг — 10 тенге (1 из 2 строк).")
+            "Arithmetic mean «Доход»: Север — -2.5 тенге (2 of 2 rows); Юг — 10 тенге (1 of 2 rows).")
         self.assertEqual(result["summary"][1],
-            "Среднее арифметическое «Площадь»: Север — 2 м² (2 из 2 строк); Юг — 3,5 м² (1 из 2 строк).")
-        self.assertEqual(result["summary"][-1], "Исходных строк: 5. Строк в расчёте: 4.")
+            "Arithmetic mean «Площадь»: Север — 2 м² (2 of 2 rows); Юг — 3.5 м² (1 of 2 rows).")
+        self.assertEqual(result["summary"][-1], "Source rows: 5. Rows used: 4.")
         self.assertNotIn("9999999", " ".join(result["summary"]))
 
     def test_summary_distinguishes_zero_negative_and_missing_without_losing_precision(self):
-        for value, expected in (("0", "0 тенге"), ("-123456.123456", "-123456,123456 тенге"),
-                ("0.000001", "0,000001 тенге"), ("", "нет пригодных значений")):
+        for value, expected in (("0", "0 тенге"), ("-123456.123456", "-123456.123456 тенге"),
+                ("0.000001", "0.000001 тенге"), ("", "no valid values")):
             with self.subTest(value=value):
                 result = calculate([["01", "Север", value, "1"]], self.columns,
                     dict(self.plan, aggregation="sum", metrics=["c2"], group_by=None))
                 count = 0 if value == "" else 1
                 self.assertEqual(result["summary"][0],
-                    f"Сумма «Доход»: Вся таблица — {expected} ({count} из 1 строк).")
+                    f"Sum «Доход»: Entire table — {expected} ({count} of 1 rows).")
 
     def test_summary_limits_groups_but_keeps_the_complete_calculation(self):
         rows = [[str(i), f"Группа {i}", str(i), "1"] for i in range(1, 9)]
         result = calculate(rows, self.columns, dict(self.plan, metrics=["c2"], aggregation="median"))
         self.assertEqual(len(result["table"]), 8)
-        self.assertIn("Группа 6 — 6 тенге (1 из 1 строк)", result["summary"][0])
+        self.assertIn("Группа 6 — 6 тенге (1 of 1 rows)", result["summary"][0])
         self.assertNotIn("Группа 7", result["summary"][0])
-        self.assertIn("первые 6 из 8 групп; все значения — в таблице", result["summary"][1])
+        self.assertIn("first 6 of 8 groups; all values are in the table", result["summary"][1])
 
     def test_summary_reports_no_groups_when_all_categories_are_missing(self):
         result = calculate([["01", "", "5", "1"]], self.columns, dict(self.plan, metrics=["c2"]))
-        self.assertEqual(result["summary"][0], "Среднее арифметическое «Доход»: нет групп для расчёта.")
-        self.assertEqual(result["summary"][-1], "Исходных строк: 1. Строк в расчёте: 0.")
+        self.assertEqual(result["summary"][0], "Arithmetic mean «Доход»: no groups to calculate.")
+        self.assertEqual(result["summary"][-1], "Source rows: 1. Rows used: 0.")
 
     def test_numeric_overflow_never_returns_infinity(self):
         rows = [["1", "A", "1e308", "1"], ["2", "A", "1e308", "1"]]

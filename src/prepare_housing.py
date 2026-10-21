@@ -5,6 +5,9 @@ the prepared table or audit. No model, weights, imputation or network is used.
 """
 from __future__ import annotations
 
+from .localization import tr
+
+
 import argparse
 from collections import Counter, defaultdict
 import csv
@@ -19,13 +22,13 @@ import statistics
 YEAR = 2024
 HOUSING_PATH = "d006/2024/rio_2024.csv"
 ROSTER_PATH = "d008/2024/kontr_k.csv"
-GROUP = "Размер домохозяйства"
-SIZE = "Членов домохозяйства"
-TOTAL = "Общая площадь"
-LIVING = "Жилая площадь"
-PER_PERSON = "Площадь на человека"
+GROUP = tr('Household size')
+SIZE = tr('Household members')
+TOTAL = tr('Total floor area')
+LIVING = tr('Living area')
+PER_PERSON = tr('Area per person')
 COLUMNS = [GROUP, SIZE, TOTAL, LIVING, PER_PERSON]
-GROUP_ORDER = ["1–2 человека", "3–4 человека", "5+ человек"]
+GROUP_ORDER = [tr('1–2 people'), tr('3–4 people'), tr('5+ people')]
 EXCLUSION_ORDER = [
     "missing_roster", "roster_size_unconfirmed", "invalid_area",
     "living_area_exceeds_total", "nonfinite_derived",
@@ -43,25 +46,25 @@ def sha256(data: bytes) -> str:
 def _read(text: str, required: list[str], form: str) -> list[dict]:
     lines = text.lstrip("\ufeff").splitlines()
     if not lines:
-        raise PreparationError(f"{form}: пустой файл.")
+        raise PreparationError(f"{form}{tr(': empty file.')}")
     sep = max((",", ";", "\t"), key=lines[0].count)
     try:
         reader = csv.reader(io.StringIO(text.lstrip("\ufeff")), delimiter=sep, strict=True)
         header = [cell.strip().upper() for cell in next(reader)]
         if len(set(header)) != len(header) or not set(required) <= set(header):
-            raise PreparationError(f"{form}: нужны уникальные столбцы {', '.join(required)}.")
+            raise PreparationError(f"{form}{tr(': unique columns required: ')}{', '.join(required)}.")
         rows = []
         for values in reader:
             if not values or not any(value.strip() for value in values):
                 continue
             if len(values) != len(header):
-                raise PreparationError(f"{form}: неверная длина строки {reader.line_num}.")
+                raise PreparationError(f"{form}{tr(': incorrect row width at ')}{reader.line_num}.")
             rows.append(dict(zip(header, (cell.strip() for cell in values))))
         if not rows:
-            raise PreparationError(f"{form}: нет строк данных.")
+            raise PreparationError(f"{form}{tr(': no data rows.')}")
         return rows
     except csv.Error as exc:
-        raise PreparationError(f"{form}: повреждён CSV.") from exc
+        raise PreparationError(f"{form}{tr(': malformed CSV.')}") from exc
 
 
 def _positive_integer(value: str) -> int | None:
@@ -82,7 +85,7 @@ def prepare(housing_text: str, roster_text: str) -> tuple[list[dict], dict]:
     for row in housing:
         key = row["NOMER"]
         if not key or key in housing_ids:
-            raise PreparationError("D006: пустой или повторный NOMER; объединение остановлено.")
+            raise PreparationError(tr('D006: blank or duplicate NOMER; join stopped.'))
         housing_ids.add(key)
 
     people: dict[str, list[dict]] = defaultdict(list)
@@ -90,9 +93,9 @@ def prepare(housing_text: str, roster_text: str) -> tuple[list[dict], dict]:
     for row in roster:
         key = (row["NOMER"], row["NOMP"])
         if not all(key) or key in seen:
-            raise PreparationError("D008: пустой или повторный NOMER/NOMP; объединение остановлено.")
+            raise PreparationError(tr('D008: blank or duplicate NOMER/NOMP; join stopped.'))
         if row["GOD"] != str(YEAR):
-            raise PreparationError("D008: все GOD должны быть 2024; смешение периодов запрещено.")
+            raise PreparationError(tr('D008: all GOD values must be 2024; mixed periods are blocked.'))
         seen.add(key)
         people[key[0]].append(row)
 
@@ -123,9 +126,9 @@ def prepare(housing_text: str, roster_text: str) -> tuple[list[dict], dict]:
                        LIVING: living, PER_PERSON: per_person})
 
     if not output:
-        raise PreparationError("После явных проверок не осталось пригодных домохозяйств.")
+        raise PreparationError(tr('No eligible households remain after validation.'))
     if len(output) > 50_000:
-        raise PreparationError("Подготовлено больше 50 000 домохозяйств: превышен предел импорта MVP.")
+        raise PreparationError(tr('More than 50,000 households: import limit exceeded.'))
     counts = Counter(row[GROUP] for row in output)
     audit = {
         "housing_rows": len(housing), "housing_unique_households": len(housing_ids),
@@ -148,7 +151,7 @@ def prepare_archive(data_root: Path, output_dir: Path) -> dict:
     for relative in [HOUSING_PATH, ROSTER_PATH]:
         source = data_root / relative
         if not source.is_file():
-            raise PreparationError(f"В архиве отсутствует {relative}.")
+            raise PreparationError(f"{tr('Input folder is missing ')}{relative}.")
         data = source.read_bytes()
         sources[relative] = {"sha256": sha256(data), "bytes": len(data)}
         if relative in (HOUSING_PATH, ROSTER_PATH):
@@ -174,30 +177,30 @@ def prepare_archive(data_root: Path, output_dir: Path) -> dict:
                           "rows": len(rows), "columns": COLUMNS},
         "audit": audit,
         "definitions": {
-            GROUP: "Группы проекта: 1–2, 3–4 и 5+ записанных членов домохозяйства.",
-            SIZE: "Число уникальных NOMER+NOMP в D008, равное KOL_CHL во всех строках домохозяйства.",
-            TOTAL: "D006.OB_PL, общая площадь жилья, м².",
-            LIVING: "D006.J_PL, жилая площадь жилья, м².",
-            PER_PERSON: "D006.OB_PL / число уникальных NOMER+NOMP в D008, м²/чел.",
+            GROUP: tr('Project groups: 1–2, 3–4 and 5+ recorded members.'),
+            SIZE: tr('Distinct D008 NOMER+NOMP count, consistent with every KOL_CHL value.'),
+            TOTAL: tr('D006.OB_PL, total housing area, m².'),
+            LIVING: tr('D006.J_PL, living area, m².'),
+            PER_PERSON: tr('D006.OB_PL / distinct NOMER+NOMP in D008, m²/person.'),
         },
         "rules": [
-            "Ключи читаются как текст: ведущие нули сохраняются; дубликаты прекращают подготовку.",
-            "D008 сначала сворачивается до одного размера состава на NOMER, затем соединяется с D006.",
-            "Отсутствующий или несогласованный состав исключается без восстановления значений.",
-            "Площади должны быть конечными положительными целыми числами; это узкий сценарий без импутации.",
-            "J_PL > OB_PL исключается как смысловое противоречие. Это правило проекта по определению площадей.",
-            "Причины исключений взаимно исключаются по указанному приоритету; строки исходников не меняются.",
-            "Число комнат не используется и не влияет на включение строки в этот анализ площадей.",
+            tr('Keys are text; leading zeros are preserved. Duplicates stop preparation.'),
+            tr('D008 is reduced to one size per NOMER before joining D006.'),
+            tr('Missing or inconsistent rosters are excluded without imputation.'),
+            tr('Areas must be finite positive integers; this narrow preparation workflow does not impute values.'),
+            tr('J_PL > OB_PL is excluded as an area-definition contradiction under the project rule.'),
+            tr('Exclusion reasons are mutually exclusive in the stated order. Source rows are not changed.'),
+            tr('Room count does not affect inclusion in this area calculation.'),
         ],
         "reference_aggregates": aggregate,
         "limitations": [
-            "Происхождение данных задаёт пользователь. Числа описывают только пригодные записи загруженного набора.",
-            "Веса обследования, доверительные интервалы, контроль раскрытия и причинные выводы не рассчитываются.",
-            "Медиана отношений площадей рассчитана по домохозяйствам, а не по отдельным людям.",
-            "Состав — записанные лица из карточки 2024 года. Изменения состава внутри года не моделируются.",
-            "Площадь на человека механически зависит от знаменателя; сравнение групп не доказывает причинность.",
-            "Участки/владение дополнительным жильём не учитываются. Группировка создана проектом.",
-            "Подготовленный CSV и исходные микроданные остаются локально; агрегат можно проверять отдельно.",
+            tr('Data provenance is supplied by the user. Values describe eligible input records only.'),
+            tr('Survey weights, confidence intervals, disclosure control and causal effects are not calculated.'),
+            tr('Median area ratios use households, not person-weighted rows.'),
+            tr('Members are those recorded for 2024; within-year roster changes are not modeled.'),
+            tr('Area per person depends on its denominator; group comparisons do not establish causality.'),
+            tr('Land and additional housing ownership are not considered. Grouping is project-defined.'),
+            tr('Prepared CSV and input records stay local; aggregates can be verified separately.'),
         ],
     }
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -213,12 +216,12 @@ def main() -> None:
                         help="Folder containing the housing and roster CSV files.")
     parser.add_argument("--output-dir", type=Path,
                         default=Path(__file__).resolve().parents[1] / "private_outputs" / "housing_preparation",
-                        help="Локальная папка результата. По умолчанию private_outputs/housing_preparation.")
+                        help=tr('Local output folder; default: private_outputs/housing_preparation.'))
     args = parser.parse_args()
     try:
         result = prepare_archive(args.data_root, args.output_dir)
     except (PreparationError, OSError, UnicodeError) as exc:
-        parser.exit(1, f"Подготовка остановлена: {exc}\n")
+        parser.exit(1, f"{tr('Preparation stopped: ')}{exc}\n")
     print(json.dumps({"prepared_households": result["audit"]["eligible_households"],
                       "excluded_households": result["audit"]["excluded_households"],
                       "synthetic_data": None, "files": ["housing_2024.csv", "preparation_audit.json"]},

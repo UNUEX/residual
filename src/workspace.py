@@ -2,6 +2,10 @@
 
 No network, generative model, automatic corrections, or benchmark on upload.
 """
+
+from .localization import tr
+from .localization import translate_owned
+
 import csv
 import hashlib
 import io
@@ -17,42 +21,41 @@ MAX_ROWS = 100_000
 MAX_BYTES = 32 * 1024 * 1024
 FIELDS = ['OB_PL', 'J_PL', 'KOL_K', 'household_size']
 FEATURES = FIELDS + ['area_per_person', 'area_per_room', 'living_share']
-NAMES = dict(zip(FEATURES, ['Общая площадь, м²', 'Жилая площадь, м²',
-    'Жилые комнаты', 'Члены домохозяйства', 'Площадь на человека, м²',
-    'Площадь на комнату, м²', 'Доля жилой площади']))
+NAMES = dict(zip(FEATURES, [tr('Total area, m²'), tr('Living area, m²'),
+    tr('Living rooms'), tr('Household members'), tr('Area per person, m²'),
+    tr('Area per room, m²'), tr('Living-area share')]))
 
 SOURCES = [{'id': 'd006_definition', 'title': 'Residual housing schema', 'path': 'docs/housing_schema.md', 'excerpt': 'The housing table uses NOMER, OB_PL, J_PL and KOL_K. The importer normalizes column names to uppercase. OB_PL is total floor area and J_PL is living area, in square metres. The housing profile expects both values to describe the same dwelling.', 'provenance': 'Project input contract. The area-order check is a diagnostic rule, not an official validation standard.'}, {'id': 'd008_definition', 'title': 'Residual roster schema', 'path': 'docs/housing_schema.md', 'excerpt': 'NOMER is the household identifier; NOMP identifies a member within a household; KOL_CHL is an optional declared household size.', 'provenance': 'Project input contract. Comparing declared size with distinct roster members is a diagnostic check.'}, {'id': 'project_method', 'title': 'Residual quality method', 'path': 'docs/methodology.md', 'excerpt': 'Seven log1p features. Robust score: maximum absolute deviation from the median divided by the interquartile range, floored at 0.05. Isolation Forest: 200 trees, seed 17.', 'provenance': 'Project method. Quartiles describe eligible input records; they are not population estimates or normative limits.'}]
 
 CHECKS = [
-    dict(id='AREA_ORDER', title='Жилая площадь превышает общую', kind='rule',
+    dict(id='AREA_ORDER', title=tr('Living area exceeds total area'), kind='rule',
          severity='contradiction', expression='J_PL > OB_PL',
          source_ids=['d006_definition'],
-         explanation='Противоречие между двумя значениями. По нему нельзя установить, '
-                     'какое значение верно: требуется сверка с первичным источником.'),
-    dict(id='MISSING_VALUE', title='Отсутствует значение', kind='validation',
-         severity='clarification', expression='Пустое поле площади или числа комнат',
+         explanation=tr('The two values conflict. Neither can be confirmed from this signal alone; check the original source.')),
+    dict(id='MISSING_VALUE', title=tr('Missing value'), kind='validation',
+         severity='clarification', expression=tr('Blank area or room-count field'),
          source_ids=['d006_definition'],
-         explanation='Уточнить применимость поля и причину пропуска. Пропуск не объявляется ошибкой.'),
-    dict(id='NONPOSITIVE_VALUE', title='Неположительное значение', kind='validation',
-         severity='clarification', expression='OB_PL, J_PL или KOL_K ≤ 0',
+         explanation=tr('Clarify applicability and why the value is missing. Missingness is not declared an error.')),
+    dict(id='NONPOSITIVE_VALUE', title=tr('Nonpositive value'), kind='validation',
+         severity='clarification', expression=tr('OB_PL, J_PL or KOL_K ≤ 0'),
          source_ids=['d006_definition'],
-         explanation='Уточнить значение и применимость показателя. Система не подменяет его автоматически.'),
-    dict(id='FRACTIONAL_ROOMS', title='Дробное число комнат', kind='validation',
-         severity='clarification', expression='KOL_K не является целым числом',
+         explanation=tr('Clarify the value and measure applicability. No automatic replacement is made.')),
+    dict(id='FRACTIONAL_ROOMS', title=tr('Fractional room count'), kind='validation',
+         severity='clarification', expression=tr('KOL_K is not an integer'),
          source_ids=['d006_definition'],
-         explanation='Число комнат требует сверки с первичным источником.'),
-    dict(id='ROSTER_SIZE', title='Состав семьи требует уточнения', kind='validation',
-         severity='clarification', expression='KOL_CHL не совпадает с числом строк D008 по NOMER',
+         explanation=tr('Verify the room count against the original source.')),
+    dict(id='ROSTER_SIZE', title=tr('Household roster needs clarification'), kind='validation',
+         severity='clarification', expression=tr('KOL_CHL differs from the D008 row count per NOMER'),
          source_ids=['d008_definition'],
-         explanation='Уточнить полноту карточки и смысл количества членов; модель не использует эту запись.'),
-    dict(id='ROBUST_OUTLIER', title='Необычное сочетание значений', kind='statistical',
-         severity='candidate', expression='Приоритет по робастному отклонению семи признаков',
+         explanation=tr('Check roster completeness and declared size; this record is excluded from model fitting.')),
+    dict(id='ROBUST_OUTLIER', title=tr('Unusual combination of values'), kind='statistical',
+         severity='candidate', expression=tr('Priority by robust deviation across seven features'),
          source_ids=['project_method'],
-         explanation='Кандидат в пределах бюджета просмотра. Это не доказательство ошибки.'),
-    dict(id='IFOREST_CANDIDATE', title='Дополнительный кандидат ML', kind='ml',
-         severity='candidate', expression='Высокий балл Isolation Forest вне робастной части очереди',
+         explanation=tr('A review candidate within the budget, not proof of error.')),
+    dict(id='IFOREST_CANDIDATE', title=tr('Additional ML candidate'), kind='ml',
+         severity='candidate', expression=tr('High Isolation Forest score outside the robust queue'),
          source_ids=['project_method'],
-         explanation='Модель выделила необычную запись. Перцентиль не является вероятностью ошибки.'),
+         explanation=tr('The model selected an unusual record. Percentile is not an error probability.')),
 ]
 CHECK_BY_ID = {check['id']: check for check in CHECKS}
 
@@ -62,22 +65,22 @@ class DatasetError(ValueError):
 
 
 def _read_csv(content, form, required):
-    filename = f'{form} — загруженный CSV'
+    filename = f"{form}{tr(' — uploaded CSV')}"
     if isinstance(content, Path):
         filename = content.name
         try:
             content = content.read_text(encoding='utf-8-sig')
         except UnicodeError as exc:
-            raise DatasetError(f'{form}: сохраните файл в кодировке UTF-8.') from exc
+            raise DatasetError(f"{form}{tr(': save the file in UTF-8.')}") from exc
     if not isinstance(content, str):
-        raise DatasetError(f'{form}: ожидается CSV в кодировке UTF-8.')
+        raise DatasetError(f"{form}{tr(': UTF-8 CSV text expected.')}")
     if len(content.encode('utf-8')) > MAX_BYTES:
-        raise DatasetError(f'{form}: файл больше 32 МБ. Разделите его на пакеты одного периода.')
+        raise DatasetError(f"{form}{tr(': file exceeds 32 MiB. Split into single-period packages.')}")
     text = content.lstrip('\ufeff')
     if not text.strip():
-        raise DatasetError(f'{form}: файл пуст. Добавьте заголовок и строки данных.')
+        raise DatasetError(f"{form}{tr(': empty file. Add a header and data rows.')}")
     if '\x00' in text:
-        raise DatasetError(f'{form}: обнаружены нулевые байты. Загрузите текстовый CSV в UTF-8.')
+        raise DatasetError(f"{form}{tr(': null bytes found. Upload a text CSV in UTF-8.')}")
     first_line = text.splitlines()[0]
     options = []
     for separator in [',', ';', '\t']:
@@ -88,14 +91,13 @@ def _read_csv(content, form, required):
         normalized = [column.strip().upper() for column in header]
         options.append((len(set(required) & set(normalized)), separator, normalized))
     if not options:
-        raise DatasetError(f'{form}: не удалось прочитать заголовок CSV.')
+        raise DatasetError(f"{form}{tr(': cannot read the CSV header.')}")
     _, separator, header = max(options, key=lambda candidate: candidate[0])
     if len(header) != len(set(header)) or any(not column for column in header):
-        raise DatasetError(f'{form}: заголовки пусты или повторяются. Укажите уникальные имена колонок.')
+        raise DatasetError(f"{form}{tr(': headers are blank or duplicated. Use unique column names.')}")
     missing = [field for field in required if field not in header]
     if missing:
-        raise DatasetError(f'{form}: отсутствуют колонки {", ".join(missing)}. '
-                           'Проверьте форму и разделитель (запятая, точка с запятой или табуляция).')
+        raise DatasetError(f"{form}{tr(': missing columns ')}{', '.join(missing)}{tr('. Check the layout and delimiter: comma, semicolon or tab.')}")
     reader = csv.reader(io.StringIO(text), delimiter=separator, strict=True)
     rows, line_numbers = [], []
     try:
@@ -107,18 +109,15 @@ def _read_csv(content, form, required):
             if not row or all(not cell.strip() for cell in row):
                 continue
             if len(row) != len(header):
-                raise DatasetError(f'{form}, строка {row_start}: {len(row)} значений вместо '
-                                   f'{len(header)}. Проверьте разделители и кавычки; '
-                                   'десятичную запятую используйте в CSV с «;» или в кавычках.')
+                raise DatasetError(f"{form}{tr(', row ')}{row_start}: {len(row)}{tr(' values instead of ')}{len(header)}{tr('. Check delimiters and quotes; use decimal commas with semicolon-separated CSV or quoted cells.')}")
             if len(rows) >= MAX_ROWS:
-                raise DatasetError(f'{form}: больше {MAX_ROWS:,} строк. Разделите пакет.')
+                raise DatasetError(f"{form}{tr(': more than ')}{MAX_ROWS:,}{tr(' rows. Split the package.')}")
             rows.append(row)
             line_numbers.append(row_start)
     except csv.Error as exc:
-        raise DatasetError(f'{form}, около строки {reader.line_num}: некорректный CSV. '
-                           'Проверьте кавычки и разделители.') from exc
+        raise DatasetError(f"{form}{tr(', near row ')}{reader.line_num}{tr(': invalid CSV. Check quotes and delimiters.')}") from exc
     if not rows:
-        raise DatasetError(f'{form}: нет строк данных после заголовка.')
+        raise DatasetError(f"{form}{tr(': no data rows after the header.')}")
     frame = pd.DataFrame(rows, columns=header)
     frame['_source_row'] = line_numbers
     keys = ['NOMER'] if form == 'D006' else ['NOMER', 'NOMP']
@@ -127,13 +126,11 @@ def _read_csv(content, form, required):
         empty = frame[key].eq('')
         if empty.any():
             line = int(frame.loc[empty, '_source_row'].iloc[0])
-            raise DatasetError(f'{form}, строка {line}: пустой ключ {key}. '
-                               'Заполните идентификатор в исходном файле.')
+            raise DatasetError(f"{form}{tr(', row ')}{line}{tr(': blank key ')}{key}{tr('. Fill in the identifier in the source file.')}")
     duplicate = frame.duplicated(keys, keep=False)
     if duplicate.any():
         locations = ', '.join(str(n) for n in frame.loc[duplicate, '_source_row'].head(4))
-        raise DatasetError(f'{form}: повтор ключа {" + ".join(keys)} в строках {locations}. '
-                           'Устраните дубликаты; ведущие нули идентификаторов сохраняются.')
+        raise DatasetError(f"{form}{tr(': duplicate key ')}{' + '.join(keys)}{tr(' at rows ')}{locations}{tr('. Remove duplicate keys; leading zeros are preserved.')}")
     return frame, dict(filename=filename, delimiter=separator, rows=len(frame),
                        columns=len(header)), content
 
@@ -146,9 +143,7 @@ def _numeric(frame, column, form):
     malformed = raw.ne('') & (~np.isfinite(numbers))
     if malformed.any():
         index = malformed[malformed].index[0]
-        raise DatasetError(f'{form}, строка {int(frame.loc[index, "_source_row"])}, '
-                           f'{column}: «{raw.loc[index][:60]}» не является конечным числом. '
-                           'Исправьте значение; отсутствие значения оставьте пустым.')
+        raise DatasetError(f"{form}{tr(', row ')}{int(frame.loc[index, '_source_row'])}, {column}: «{raw.loc[index][:60]}{tr('» is not finite. Correct it; leave missing values blank.')}")
     return numbers.astype(float)
 
 
@@ -173,16 +168,13 @@ def analyze_package(housing_csv: str, roster_csv: str, year: int = 2024, label: 
     """
     started = time.perf_counter()
     if year != 2024:
-        raise DatasetError('Этот MVP проверен для форм D006 и D008 за 2024 год. '
-                           'Для другого года сначала согласуйте структуру и правила.')
+        raise DatasetError(tr('This profile was checked for D006/D008 in 2024. Other years require agreed schemas and rules first.'))
     housing, h_meta, h_text = _read_csv(housing_csv, 'D006', ['NOMER', 'OB_PL', 'J_PL', 'KOL_K'])
     roster, r_meta, r_text = _read_csv(roster_csv, 'D008', ['NOMER', 'NOMP'])
     missing_links = housing.loc[~housing.NOMER.isin(roster.NOMER), 'NOMER']
     if len(missing_links):
         examples = ', '.join(missing_links.head(3))
-        raise DatasetError(f'D006 → D008: для {len(missing_links)} домохозяйств нет карточки '
-                           f'состава (например, {examples}). Загрузите файлы одного периода '
-                           'с совпадающими NOMER; ведущие нули имеют значение.')
+        raise DatasetError(f"{tr('D006 → D008: for ')}{len(missing_links)}{tr(' households have no roster (for example, ')}{examples}{tr('). Upload the same period with matching NOMER keys; leading zeros matter.')}")
     data = housing.set_index('NOMER')[[]]
     for field in ['OB_PL', 'J_PL', 'KOL_K']:
         data[field] = _numeric(housing, field, 'D006').to_numpy()
@@ -210,8 +202,7 @@ def analyze_package(housing_csv: str, roster_csv: str, year: int = 2024, label: 
     invalid_derived = raw_features.isna().any(axis=1) & ~excluded
     if invalid_derived.any():
         key = str(data.index[invalid_derived][0])
-        raise DatasetError(f'D006, NOMER {key}: сочетание значений не позволяет '
-                           'рассчитать конечные отношения площадей. Проверьте порядок величин.')
+        raise DatasetError(f"D006, NOMER {key}{tr(': values cannot form finite area ratios. Check their magnitude.')}")
     clean = raw_features.loc[~excluded]
     ranges = clean.quantile([.25, .5, .75]) if len(clean) else pd.DataFrame(
         np.nan, index=[.25, .5, .75], columns=FEATURES)
@@ -256,33 +247,29 @@ def analyze_package(housing_csv: str, roster_csv: str, year: int = 2024, label: 
         signal_ids, reasons = [], []
         if contradiction.loc[key]:
             signal_ids.append('AREA_ORDER')
-            reasons.append(f'Жилая площадь {row.J_PL:g} м² больше общей {row.OB_PL:g} м² '
-                           f'на {row.J_PL - row.OB_PL:g} м². Требуется сверка обоих значений.')
+            reasons.append(f"{tr('Living area ')}{row.J_PL:g}{tr(' m² exceeds total area ')}{row.OB_PL:g}{tr(' m² by ')}{row.J_PL - row.OB_PL:g}{tr(' m². Check both values.')}")
         if missing.loc[key]:
             signal_ids.append('MISSING_VALUE')
-            reasons.append('Нет значения: ' + ', '.join(NAMES[field] for field in FIELDS if pd.isna(row[field])) + '.')
+            reasons.append(tr('Missing value: ') + ', '.join(NAMES[field] for field in FIELDS if pd.isna(row[field])) + '.')
         if nonpositive.loc[key]:
             signal_ids.append('NONPOSITIVE_VALUE')
-            reasons.append('Неположительное значение: ' + ', '.join(
+            reasons.append(tr('Nonpositive value: ') + ', '.join(
                 f'{NAMES[field]} = {row[field]:g}' for field in FIELDS if pd.notna(row[field]) and row[field] <= 0) + '.')
         if fractional.loc[key]:
             signal_ids.append('FRACTIONAL_ROOMS')
-            reasons.append(f'Дробное число жилых комнат: {row.KOL_K:g}. Требуется уточнение.')
+            reasons.append(f"{tr('Fractional living-room count: ')}{row.KOL_K:g}{tr('. Clarification needed.')}")
         if declared_mismatch.loc[key]:
             signal_ids.append('ROSTER_SIZE')
-            reasons.append(f'В D008 найдено {int(row.household_size)} членов; KOL_CHL '
-                           'пуст, неодинаков между строками или не совпадает с этим числом.')
+            reasons.append(f"{tr('D008 contains ')}{int(row.household_size)}{tr(' members; KOL_CHL is blank, inconsistent or different from this count.')}")
         kind = 'rule' if contradiction.loc[key] else 'validation' if validation.loc[key] else 'none'
         if key in selected_ml:
             kind = 'ml'
             signal_ids.append('IFOREST_CANDIDATE')
-            reasons.append('Дополнительный кандидат Isolation Forest, не вошедший в робастную '
-                           'часть очереди. Статистическая необычность не означает ошибку.')
+            reasons.append(tr('An additional Isolation Forest candidate outside the robust queue. Statistical unusualness is not an error finding.'))
         elif key in selected_stat:
             kind = 'statistical'
             signal_ids.append('ROBUST_OUTLIER')
-            reasons.append('Высокое робастное отклонение относительно пригодных записей '
-                           'текущего пакета. Статистическая необычность не означает ошибку.')
+            reasons.append(tr('High robust deviation relative to eligible input records. Statistical unusualness does not establish an error.'))
         for signal_id in signal_ids:
             signal_counts[signal_id] += 1
         values = {field: _finite(row[field], 8) for field in FIELDS}
@@ -309,10 +296,10 @@ def analyze_package(housing_csv: str, roster_csv: str, year: int = 2024, label: 
             robust_score=_finite(robust.loc[key]), robust_percentile=_finite(robust_percentile.loc[key], 1),
             ml_score=_finite(ml.loc[key]), ml_percentile=_finite(ml_percentile.loc[key], 1),
             reasons=reasons, signal_ids=signal_ids,
-            signals=[dict(CHECK_BY_ID[signal_id]) for signal_id in signal_ids],
+            signals=[translate_owned(CHECK_BY_ID[signal_id]) for signal_id in signal_ids],
             evidence=evidence, values=values, source_rows=source_rows,
             declared_household_sizes=declared_values.get(key, []),
-            source=f"{h_meta['filename']}, строка {source_rows['housing']['row']} + {r_meta['filename']}",
+            source=f"{h_meta['filename']}{tr(', row ')}{source_rows['housing']['row']} + {r_meta['filename']}",
             source_ids=sorted({source for signal_id in signal_ids for source in CHECK_BY_ID[signal_id]['source_ids']})))
     positions = {key: i for i, key in enumerate(chosen)}
     queue.sort(key=lambda record: positions[record['id']])
@@ -330,11 +317,10 @@ def analyze_package(housing_csv: str, roster_csv: str, year: int = 2024, label: 
     model_metadata = dict(name='Isolation Forest', enabled=model_enabled, seed=17,
         n_estimators=200, max_samples=min(256, len(clean)) if model_enabled else 0,
         features=FEATURES, training_rows=len(clean), transformation='log1p',
-        fit_scope='Только полные положительные записи без противоречий и сигналов уточнения.',
-        validation='Обучение и ранжирование на одном пакете, без меток ошибок. '
-                   'Точность на реальных ошибках этим запуском не измеряется.',
-        disabled_reason=None if model_enabled else 'Нужно не менее 100 пригодных записей для ML.',
-        percentile_note='Перцентиль балла внутри текущего пакета, не вероятность ошибки.')
+        fit_scope=tr('Complete positive records without contradictions or clarification signals only.'),
+        validation=tr('Training and ranking use one package without error labels. This run does not measure accuracy on real errors.'),
+        disabled_reason=None if model_enabled else tr('ML requires at least 100 eligible records.'),
+        percentile_note=tr('Score percentile within this package, not an error probability.'))
     summary = dict(version='1.0', label=str(label)[:200], year=year, scope='D006 + D008',
         housing_rows=len(data), roster_rows=len(roster), roster_households=len(sizes),
         unused_roster_households=int((~sizes.index.isin(data.index)).sum()),
@@ -346,20 +332,17 @@ def analyze_package(housing_csv: str, roster_csv: str, year: int = 2024, label: 
         base_queue_size=len(priority_ids) + len(robust_ids),
         statistical_queue=len(robust_ids), ml_queue=len(ml_ids), pending=len(queue),
         model='Isolation Forest', model_metadata=model_metadata, features=FEATURES,
-        histogram=histogram, histogram_scope='Все строки с конечной неотрицательной площадью на человека.',
+        histogram=histogram, histogram_scope=tr('All rows with finite nonnegative area per person.'),
         signal_counts=signal_counts, input_sha256=fingerprint.hexdigest(),
         input_files=dict(housing=h_meta, roster=r_meta),
         queue_policy=dict(base_budget=target, supplemental_ml_budget=ml_budget,
             all_explicit_signals_included=True,
             expanded_for_signals=len(priority_ids) > target,
-            description='Базовая очередь: все противоречия и уточнения, затем робастные '
-                        'кандидаты до бюджета. ML добавляет до 50 других кандидатов, не вытесняя '
-                        'базовую очередь. Качество объединённой очереди пока не измерено. '
-                        'Порядок — не оценка вероятности ошибки.'),
+            description=tr('The base queue keeps contradictions and clarification signals, then robust candidates up to budget. ML adds up to 50 other candidates without displacing the base. Combined-queue quality has not been measured; rank is not an error probability.')),
         runtime_seconds=round(time.perf_counter() - started, 3),
-        limitations=['Профиль проверок реализован только для D006/D008 2024 года.',
-                    'Сигналы требуют решения специалиста; исходные значения не изменяются.',
-                    'Квартили невзвешенные, относятся к пакету и не описывают население.',
-                    'Качество ранжирования на реальных ошибках требует отдельного пилота.'])
+        limitations=[tr('The review profile supports D006/D008 for 2024 only.'),
+                    tr('Signals require a specialist decision; source values remain unchanged.'),
+                    tr('Quartiles are unweighted and describe this package, not a population.'),
+                    tr('Ranking quality on real errors needs a separate pilot.')])
     return dict(summary=summary, records=queue, all_records_by_id=all_records,
-                checks=[dict(check) for check in CHECKS], sources=[dict(source) for source in SOURCES])
+                checks=[translate_owned(check) for check in CHECKS], sources=[translate_owned(source) for source in SOURCES])

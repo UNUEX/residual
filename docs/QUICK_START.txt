@@ -9,6 +9,6 @@ RESIDUAL QUICK START
 7. Ask for a mean, median, or sum. Review and confirm the proposed plan.
 8. Open the saved report and download its result or reproduction files.
 
-The interface is currently in Russian. The sample buttons load small invented tables from examples/, not survey records. Your own imported files and reports stay in private_outputs/ and are excluded from Git.
+The interface starts in English. Select Kazakh, Korean or Simplified Chinese from Language. The choice is stored in your browser. Imported values and column names are preserved. Sample buttons load small invented tables from examples/. Your imported files and reports stay in private_outputs/ and are excluded from Git.
 
 Stop the application with stop_residual.cmd. For setup details and troubleshooting, read LOCAL_START.txt.

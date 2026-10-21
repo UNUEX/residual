@@ -37,9 +37,9 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual(record['kind'], 'rule')
         self.assertEqual(record['signal_ids'], ['AREA_ORDER'])
         self.assertEqual(record['source_rows']['housing']['row'], 2)
-        self.assertEqual(record['source_rows']['housing']['file'], 'D006 — загруженный CSV')
-        self.assertEqual(record['source_rows']['roster']['file'], 'D008 — загруженный CSV')
-        self.assertEqual(result['summary']['input_files']['housing']['filename'], 'D006 — загруженный CSV')
+        self.assertEqual(record['source_rows']['housing']['file'], 'D006 — uploaded CSV')
+        self.assertEqual(record['source_rows']['roster']['file'], 'D008 — uploaded CSV')
+        self.assertEqual(result['summary']['input_files']['housing']['filename'], 'D006 — uploaded CSV')
         self.assertEqual(record['source_rows']['roster']['rows'], [2])
         self.assertFalse(result['summary']['model_metadata']['enabled'])
         json.dumps(result, allow_nan=False)
@@ -56,17 +56,17 @@ class WorkspaceTests(unittest.TestCase):
 
     def test_invalid_numeric_and_nonfinite_values_are_rejected(self):
         for value in ['abc', 'NaN', 'inf', '-Infinity', '1e999', '1,2.3']:
-            with self.subTest(value=value), self.assertRaisesRegex(DatasetError, 'конечным числом'):
+            with self.subTest(value=value), self.assertRaisesRegex(DatasetError, 'not finite'):
                 analyze_package(f'NOMER;OB_PL;J_PL;KOL_K\n01;{value};20;2\n',
                                 'NOMER,NOMP\n01,1\n')
 
     def test_missing_keys_duplicate_keys_and_missing_links(self):
         cases = [
-            ('NOMER,OB_PL,J_PL,KOL_K\n,40,20,2\n', 'NOMER,NOMP\n01,1\n', 'пустой ключ NOMER'),
-            ('NOMER,OB_PL,J_PL,KOL_K\n01,40,20,2\n', 'NOMER,NOMP\n01,\n', 'пустой ключ NOMP'),
-            ('NOMER,OB_PL,J_PL,KOL_K\n01,40,20,2\n01,50,30,3\n', 'NOMER,NOMP\n01,1\n', 'повтор ключа'),
-            ('NOMER,OB_PL,J_PL,KOL_K\n01,40,20,2\n', 'NOMER,NOMP\n01,1\n01,1\n', 'повтор ключа'),
-            ('NOMER,OB_PL,J_PL,KOL_K\n01,40,20,2\n', 'NOMER,NOMP\n1,1\n', 'нет карточки'),
+            ('NOMER,OB_PL,J_PL,KOL_K\n,40,20,2\n', 'NOMER,NOMP\n01,1\n', 'blank key NOMER'),
+            ('NOMER,OB_PL,J_PL,KOL_K\n01,40,20,2\n', 'NOMER,NOMP\n01,\n', 'blank key NOMP'),
+            ('NOMER,OB_PL,J_PL,KOL_K\n01,40,20,2\n01,50,30,3\n', 'NOMER,NOMP\n01,1\n', 'duplicate key'),
+            ('NOMER,OB_PL,J_PL,KOL_K\n01,40,20,2\n', 'NOMER,NOMP\n01,1\n01,1\n', 'duplicate key'),
+            ('NOMER,OB_PL,J_PL,KOL_K\n01,40,20,2\n', 'NOMER,NOMP\n1,1\n', 'no roster'),
         ]
         for housing, roster, message in cases:
             with self.subTest(message=message), self.assertRaisesRegex(DatasetError, message):
@@ -75,13 +75,13 @@ class WorkspaceTests(unittest.TestCase):
     def test_schema_row_width_and_limit_errors(self):
         for housing, message in [
             ('NOMER,OB_PL,J_PL\n01,40,20\n', 'KOL_K'),
-            ('NOMER,OB_PL,J_PL,KOL_K,KOL_K\n01,40,20,2,2\n', 'повторяются'),
-            ('NOMER,OB_PL,J_PL,KOL_K\n01,40,20,2,5\n', 'значений вместо'),
-            ('NOMER,OB_PL,J_PL,KOL_K\n', 'нет строк данных'),
+            ('NOMER,OB_PL,J_PL,KOL_K,KOL_K\n01,40,20,2,2\n', 'duplicated'),
+            ('NOMER,OB_PL,J_PL,KOL_K\n01,40,20,2,5\n', 'values instead of'),
+            ('NOMER,OB_PL,J_PL,KOL_K\n', 'no data rows'),
         ]:
             with self.subTest(message=message), self.assertRaisesRegex(DatasetError, message):
                 analyze_package(housing, 'NOMER,NOMP\n01,1\n')
-        with patch('src.workspace.MAX_ROWS', 1), self.assertRaisesRegex(DatasetError, 'больше'):
+        with patch('src.workspace.MAX_ROWS', 1), self.assertRaisesRegex(DatasetError, 'more than'):
             analyze_package('NOMER,OB_PL,J_PL,KOL_K\n01,40,20,2\n02,40,20,2\n',
                             'NOMER,NOMP\n01,1\n02,1\n')
 

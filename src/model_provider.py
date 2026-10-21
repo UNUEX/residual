@@ -1,6 +1,9 @@
 """Small, explicit model transport. Keys stay in memory; redirects are forbidden."""
 from __future__ import annotations
 
+from .localization import tr
+
+
 import ipaddress
 import json
 import re
@@ -35,11 +38,11 @@ def ollama_local_ref(model):
 
     base, source = source_suffix(model.strip())
     if source == "cloud":
-        raise ProviderError("Облачные модели запрещены в локальном режиме Ollama. Для внешней модели настройте HTTPS-провайдер и явно разрешите передачу вопроса.")
+        raise ProviderError(tr('Cloud models are blocked in local Ollama mode. For an external model, configure HTTPS and explicitly allow sending the question.'))
     if source == "local" and source_suffix(base)[1] is not None:
-        raise ProviderError("Укажите один источник модели: нельзя сочетать суффиксы :local и :cloud.")
+        raise ProviderError(tr('Use one model source; :local and :cloud cannot be combined.'))
     if not base.strip():
-        raise ProviderError("Укажите имя локальной модели перед :local.")
+        raise ProviderError(tr('Enter a local model name before :local.'))
     return base.strip() + ":local"
 
 
@@ -49,22 +52,22 @@ def has_remote_metadata(item):
 
 def validate_config(value):
     if not isinstance(value, dict):
-        raise ProviderError("Настройки модели должны быть объектом.")
+        raise ProviderError(tr('Model settings must be an object.'))
     provider = value.get("provider", "ollama")
     if provider not in {"ollama", "openai_compatible"}:
-        raise ProviderError("Поддерживаются Ollama и OpenAI-compatible API.")
+        raise ProviderError(tr('Ollama and OpenAI-compatible APIs are supported.'))
     base = value.get("base_url", "")
     model = value.get("model", "")
     if not isinstance(base, str) or not isinstance(model, str) or not model.strip() or len(model) > 200:
-        raise ProviderError("Укажите адрес сервера и имя модели.")
+        raise ProviderError(tr('Enter the server URL and model name.'))
     url = parse.urlsplit(base.strip())
     try:
         port = url.port
     except ValueError:
-        raise ProviderError("Некорректный порт сервера модели.") from None
+        raise ProviderError(tr('Invalid model-server port.')) from None
     if (url.scheme not in {"http", "https"} or not url.hostname or url.username or url.password
             or url.query or url.fragment or any(ord(c) < 33 for c in base)):
-        raise ProviderError("Адрес должен быть HTTP(S), без пароля, параметров и фрагмента.")
+        raise ProviderError(tr('Use an HTTP(S) URL without credentials, query parameters or a fragment.'))
     host = url.hostname.lower()
     try:
         local = ipaddress.ip_address(host).is_loopback
@@ -72,11 +75,11 @@ def validate_config(value):
         local = host == "localhost"
     allow = value.get("allow_external", False)
     if type(allow) is not bool:
-        raise ProviderError("Разрешение внешнего сервера должно быть явно задано.")
+        raise ProviderError(tr('External-server permission must be explicit.'))
     if not local and (not allow or url.scheme != "https"):
-        raise ProviderError("Для сервера вне этого компьютера нужны HTTPS и явное разрешение передачи вопроса.")
+        raise ProviderError(tr('A remote server requires HTTPS and explicit permission to send the question.'))
     if provider == "ollama" and not local:
-        raise ProviderError("Ollama в этом MVP подключается только на этом компьютере. Для своего HTTPS-сервера используйте совместимый API.")
+        raise ProviderError(tr('Ollama connects only on this computer. Use a compatible API for your own HTTPS server.'))
     if provider == "ollama":
         ollama_local_ref(model)
     return {"provider": provider, "base_url": base.strip().rstrip("/"),
@@ -85,19 +88,19 @@ def validate_config(value):
 
 class NoRedirect(request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        raise ProviderError("Сервер модели перенаправляет запрос. Укажите конечный адрес; перенаправления запрещены.")
+        raise ProviderError(tr('The model server redirected the request. Use its final URL; redirects are blocked.'))
 
 
 class ModelProvider:
     def __init__(self, config=None, api_key=""):
         self.config = validate_config(config or DEFAULT_CONFIG)
         if not isinstance(api_key, str) or len(api_key) > 4096 or "\n" in api_key or "\r" in api_key:
-            raise ProviderError("Некорректный ключ API.")
+            raise ProviderError(tr('Invalid API key.'))
         self._api_key = api_key
 
     def public_config(self):
         return {**self.config, "api_key_set": bool(self._api_key),
-                "data_policy": "Модели передаются только ваш вопрос и описание допустимых операций. Строки таблиц и результаты расчёта не отправляются. Сам вопрос может содержать чувствительные сведения.",
+                "data_policy": tr('The model receives only your question and allowed operations, not table rows or results. The question may still contain sensitive information.'),
                 "automatic_fallback": False}
 
     def _request(self, endpoint, body=None, timeout=120):
@@ -112,24 +115,24 @@ class ModelProvider:
             with opener.open(req, timeout=timeout) as response:
                 raw = response.read(MAX_RESPONSE + 1)
             if len(raw) > MAX_RESPONSE:
-                raise ProviderError("Ответ модели превышает допустимый размер.")
+                raise ProviderError(tr('The model response is too large.'))
             result = json.loads(raw.decode("utf-8"))
             if not isinstance(result, dict):
-                raise ProviderError("Сервер вернул ответ неизвестного формата.")
+                raise ProviderError(tr('Unrecognized model-server response format.'))
             return result
         except ProviderError:
             raise
         except error.HTTPError as exc:
-            messages = {401: "Сервер не принял ключ API.", 403: "Сервер запретил доступ к модели.",
-                        404: "Модель или адрес API не найдены. Проверьте имя модели и адрес сервера.",
-                        429: "Сервер модели ограничил число запросов. Повторите позже."}
-            raise ProviderError(messages.get(exc.code, "Сервер модели вернул ошибку HTTP " + str(exc.code) + ".")) from None
+            messages = {401: tr('The server rejected the API key.'), 403: tr('The server denied model access.'),
+                        404: tr('Model or API URL not found. Check the model name and server URL.'),
+                        429: tr('Model-server rate limit reached. Try again later.')}
+            raise ProviderError(messages.get(exc.code, tr('Model-server HTTP error ') + str(exc.code) + ".")) from None
         except (socket.timeout, TimeoutError):
-            raise ProviderError("Модель не ответила за 120 секунд. Попробуйте меньшую модель или повторите запрос.") from None
+            raise ProviderError(tr('No model response within 120 seconds. Try a smaller model or retry.')) from None
         except (error.URLError, OSError):
-            raise ProviderError("Не удалось подключиться к модели. Запустите Ollama или проверьте адрес сервера.") from None
+            raise ProviderError(tr('Cannot connect to the model. Start Ollama or check the server URL.')) from None
         except (ValueError, UnicodeError):
-            raise ProviderError("Сервер модели вернул некорректный JSON.") from None
+            raise ProviderError(tr('The model server returned invalid JSON.')) from None
 
     def probe(self):
         ollama = self.config["provider"] == "ollama"
@@ -159,10 +162,10 @@ class ModelProvider:
                         "local_inference_verified": False, "message": str(exc)}
             return {"ok": True, "models": models, "selected_model": selected,
                     "local_inference_verified": True,
-                    "message": "Локальная модель доступна. Запросы принудительно используют источник :local."}
+                    "message": tr('Local model available. Requests are forced to use :local.')}
         found = selected in models or (ollama and selected + ":latest" in models)
         return {"ok": found, "models": models, "selected_model": selected,
-                "message": "Модель доступна." if found else "Сервер отвечает, но выбранная модель не найдена. Выберите доступную модель или загрузите её в Ollama."}
+                "message": tr('Model available.') if found else tr('Server reachable, but the model was not found. Select an available model or download it in Ollama.')}
 
     def _ollama_local_model(self, items=None):
         """Verify before sending the question; never retry without :local."""
@@ -170,11 +173,11 @@ class ModelProvider:
         version = self._request("/api/version", timeout=15).get("version", "")
         match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:[-+].*)?", str(version))
         if not match or tuple(map(int, match.groups())) < MIN_LOCAL_SOURCE_VERSION:
-            raise ProviderError("Для принудительно локального запуска требуется Ollama 0.40.3 или новее. Обновите Ollama; вопрос модели не отправлен.")
+            raise ProviderError(tr('Forced local execution requires Ollama 0.40.3 or later. Update Ollama; no question was sent.'))
         if items is None:
             items = self._request("/api/tags", timeout=15).get("models")
         if not isinstance(items, list):
-            raise ProviderError("Ollama не вернул список установленных моделей. Локальное выполнение не подтверждено; вопрос не отправлен.")
+            raise ProviderError(tr('Ollama did not return installed models. Local execution is unverified; no question was sent.'))
         # Names in /api/tags use the canonical display name. /api/show with :local
         # also resolves full names and aliases that are not byte-identical here.
         selected = local_ref.removesuffix(":local").casefold()
@@ -183,15 +186,15 @@ class ModelProvider:
             if isinstance(item, dict) and names.intersection(
                     str(item.get(key, "")).casefold() for key in ("name", "model")):
                 if has_remote_metadata(item):
-                    raise ProviderError("Выбранное имя Ollama ссылается на удалённую модель. В локальном режиме вопрос не отправлен.")
+                    raise ProviderError(tr('The selected Ollama name points to a remote model. No question was sent in local mode.'))
         try:
             info = self._request("/api/show", {"model": local_ref}, timeout=15)
         except ProviderError as exc:
-            raise ProviderError("Локальная модель не подтверждена. Дождитесь загрузки модели и проверьте её имя; нужен Ollama 0.40.3 или новее. " + str(exc)) from None
+            raise ProviderError(tr('Local model not confirmed. Finish downloading and check the name; Ollama 0.40.3 or later is required. ') + str(exc)) from None
         if has_remote_metadata(info):
-            raise ProviderError("Метаданные Ollama указывают удалённую модель. В локальном режиме вопрос не отправлен.")
+            raise ProviderError(tr('Ollama metadata identifies a remote model. No question was sent in local mode.'))
         if not isinstance(info.get("details"), dict) or not isinstance(info.get("model_info"), dict):
-            raise ProviderError("Ollama вернул неполные сведения о модели. Локальное выполнение не подтверждено; вопрос не отправлен.")
+            raise ProviderError(tr('Ollama returned incomplete model metadata. Local execution is unverified; no question was sent.'))
         return local_ref
 
     def propose(self, question, system_prompt, schema):
@@ -204,10 +207,10 @@ class ModelProvider:
                          "options": {"temperature": 0, "num_predict": 600, "num_ctx": 4096}})
             result = self._request("/api/chat", body)
             if has_remote_metadata(result):
-                raise ProviderError("Сервер сообщил об удалённом выполнении вопреки локальному режиму. Ответ не используется; проверьте сервер Ollama.")
+                raise ProviderError(tr('The server reported remote execution in local mode. The response is discarded; check Ollama.'))
             message = result.get("message")
             if not isinstance(message, dict):
-                raise ProviderError("Модель не вернула сообщение с планом.")
+                raise ProviderError(tr('The model returned no planning message.'))
             content = message.get("content", "")
         else:
             body.update({"temperature": 0, "max_tokens": 800,
@@ -217,10 +220,10 @@ class ModelProvider:
             try:
                 content = result["choices"][0]["message"]["content"]
             except (KeyError, TypeError, IndexError):
-                raise ProviderError("Сервер не вернул текст плана. Нужен API с поддержкой structured outputs.") from None
+                raise ProviderError(tr('No plan text returned. The API must support structured outputs.')) from None
         if not isinstance(content, str):
-            raise ProviderError("Модель не вернула JSON-план.")
+            raise ProviderError(tr('The model did not return a JSON plan.'))
         try:
             return json.loads(content)
         except (ValueError, TypeError):
-            raise ProviderError("Модель вернула некорректный план. Расчёт не выполнялся; попробуйте уточнить вопрос.") from None
+            raise ProviderError(tr('The model returned an invalid plan. No calculation ran; clarify the question.')) from None

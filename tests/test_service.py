@@ -77,7 +77,7 @@ class ServiceTests(unittest.TestCase):
         self.call('/api/review', dict(run_id=first['run_id'], id='00000', status='needs_check', comment='=2+2'))
         csv_data = self.call('/api/export?format=csv&run_id=' + first['run_id']).decode('utf-8-sig')
         row = next(r for r in csv.DictReader(io.StringIO(csv_data), delimiter=';') if r['NOMER'] == '00000')
-        self.assertEqual(row['Комментарий'], "'=2+2")
+        self.assertEqual(row['Comment'], "'=2+2")
         second_body = fixture(fixed=True); second_body['base_run_id'] = first['run_id']
         second = self.analyze(second_body)
         comparison = second['comparison']
@@ -175,19 +175,19 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(len(rows), 120)
         self.assertEqual({r['NOMER'] for r in rows},
                          {f'{i:05d}' for i in range(119)} | {"'=2+2"})
-        self.assertTrue(all(row['Пакет'] == "'=SUM(1,2)" for row in rows))
-        self.assertTrue(all(row['Изменение'] == 'Изменено' for row in rows))
+        self.assertTrue(all(row['Package'] == "'=SUM(1,2)" for row in rows))
+        self.assertTrue(all(row['Change'] == 'Changed' for row in rows))
         first_row = next(row for row in rows if row['NOMER'] == '00000')
-        self.assertEqual(float(first_row['Общая площадь до']), 60)
-        self.assertEqual(float(first_row['Общая площадь после']), 65)
-        self.assertEqual(first_row['Исходная версия'], first['run_id'])
-        self.assertEqual(first_row['Новая версия'], second['run_id'])
-        self.assertEqual(first_row['KOL_CHL до'], '1.0')
+        self.assertEqual(float(first_row['Total floor area before']), 60)
+        self.assertEqual(float(first_row['Total floor area after']), 65)
+        self.assertEqual(first_row['Base version'], first['run_id'])
+        self.assertEqual(first_row['New version'], second['run_id'])
+        self.assertEqual(first_row['KOL_CHL before'], '1.0')
         # The ordinary queue export retains its separate format and scope.
         queue_raw = self.call('/api/export?format=csv&run_id=' + second['run_id'])
         queue_rows = list(csv.DictReader(io.StringIO(queue_raw.decode('utf-8-sig')), delimiter=';'))
         self.assertEqual(len(queue_rows), len(second['records']))
-        self.assertIn('Решение', queue_rows[0])
+        self.assertIn('Decision', queue_rows[0])
 
     def test_legacy_comparison_is_normalized_without_rewriting_saved_results(self):
         with tempfile.TemporaryDirectory() as folder:

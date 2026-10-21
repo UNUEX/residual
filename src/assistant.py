@@ -3,6 +3,9 @@
 This module is deterministic evidence assembly, not an LLM or a retrieval model.
 Isolation Forest lives in the quality engine. No data leaves the local process.
 """
+
+from .localization import tr, get_language
+
 from copy import deepcopy
 import math
 import re
@@ -14,12 +17,12 @@ for _source in SOURCES.values():
     _source['version'] = SOURCE_VERSION
 
 NAMES = {
-    'OB_PL': 'Общая площадь', 'J_PL': 'Жилая площадь', 'KOL_K': 'Жилые комнаты',
-    'household_size': 'Число членов домохозяйства', 'declared_size': 'Заявленное число членов',
-    'area_per_person': 'Площадь на человека', 'area_per_room': 'Площадь на комнату',
-    'living_share': 'Доля жилой площади',
+    'OB_PL': tr('Total floor area'), 'J_PL': tr('Living area'), 'KOL_K': tr('Living rooms'),
+    'household_size': tr('Household member count'), 'declared_size': tr('Declared member count'),
+    'area_per_person': tr('Area per person'), 'area_per_room': tr('Area per room'),
+    'living_share': tr('Living-area share'),
 }
-UNITS = {'OB_PL': ' м²', 'J_PL': ' м²', 'area_per_person': ' м²', 'area_per_room': ' м²'}
+UNITS = {'OB_PL': tr(' m²'), 'J_PL': tr(' m²'), 'area_per_person': tr(' m²'), 'area_per_room': tr(' m²')}
 
 
 def _text(value, limit=500):
@@ -38,7 +41,7 @@ def _number(value):
 
 def _fmt(value):
     parsed = _number(value)
-    return 'не указано' if parsed is None else f'{parsed:,.3f}'.rstrip('0').rstrip('.').replace(',', ' ').replace('.', ',')
+    return tr('not specified') if parsed is None else f'{parsed:,.3f}'.rstrip('0').rstrip('.').replace(',', ' ').replace('.', ',' if get_language() == 'kk' else '.')
 
 
 def _action(action, question):
@@ -60,7 +63,7 @@ def _action(action, question):
 
 
 def _record_source(record):
-    locator = _text(record.get('source') or 'Загруженный пакет D006 + D008', 500)
+    locator = _text(record.get('source') or tr('Uploaded D006 + D008 package'), 500)
     rows = record.get('source_rows')
     locations = []
     if isinstance(rows, dict):
@@ -68,7 +71,7 @@ def _record_source(record):
             if key not in rows:
                 continue
             entry = rows[key]
-            filename = 'загруженный CSV'
+            filename = tr('uploaded CSV')
             if isinstance(entry, dict):
                 filename = _text(entry.get('file') or filename)
                 numbers = entry.get('rows', entry.get('row', []))
@@ -77,7 +80,7 @@ def _record_source(record):
             if not isinstance(numbers, (list, tuple)):
                 numbers = [numbers]
             numbers = [_text(number) for number in numbers if number is not None]
-            detail = ('строка ' if len(numbers) == 1 else 'строки ') + ', '.join(numbers) if numbers else 'строки не указаны'
+            detail = (tr('row ') if len(numbers) == 1 else tr('rows ')) + ', '.join(numbers) if numbers else tr('rows not specified')
             locations.append(f'{form} — {filename}: {detail}')
     if locations:
         locator = '; '.join(locations)
@@ -86,9 +89,9 @@ def _record_source(record):
         values = {}
     excerpt = '; '.join(f'{name}: {_fmt(values.get(field))}{UNITS.get(field, "")}'
                         for field, name in NAMES.items() if field in values)
-    return {'id': 'CASE-INPUT', 'title': f'Исходные значения: {_text(record.get("id", "без идентификатора"), 100)}',
-            'type': 'input_data', 'locator': locator, 'excerpt': excerpt or 'Значения полей не переданы.',
-            'version': _text(record.get('batch_id') or record.get('batch') or 'текущий пакет', 100)}
+    return {'id': 'CASE-INPUT', 'title': f"{tr('Source values: ')}{_text(record.get('id', tr('no identifier')), 100)}",
+            'type': 'input_data', 'locator': locator, 'excerpt': excerpt or tr('No field values supplied.'),
+            'version': _text(record.get('batch_id') or record.get('batch') or tr('current package'), 100)}
 
 
 def assist_case(record: dict, action: str = 'explain', question: str = '') -> dict:
@@ -115,42 +118,28 @@ def assist_case(record: dict, action: str = 'explain', question: str = '') -> di
     source_ids = ['D006-FIELDS', 'RESIDUAL-RULES']
     statements = []
     if area_conflict:
-        statements.append(f'Жилая площадь {_fmt(living)} м² превышает общую {_fmt(total)} м² на {_fmt(living-total)} м². '
-                          'Общая площадь включает жилую по определению в инструкции D006 [D006-AREA]. '
-                          'Сочетание требует сверки; по этим значениям нельзя установить, какое поле верно.')
+        statements.append(f"{tr('Living area ')}{_fmt(living)}{tr(' m² exceeds total area ')}{_fmt(total)}{tr(' m² by ')}{_fmt(living - total)}{tr(' m². Total area includes living area under the housing schema [D006-AREA]. Review both fields; these values alone do not identify which is correct.')}")
         source_ids.insert(0, 'D006-AREA')
     if missing:
-        statements.append('Не хватает пригодных числовых значений: ' + ', '.join(NAMES[f] for f in missing) + '. '
-                          'Нужно выяснить применимость вопроса, наличие ответа и результат соединения таблиц. '
-                          'Пропуск сам по себе не доказывает ошибку респондента [RESIDUAL-RULES].')
+        statements.append(tr('Insufficient valid numeric values: ') + ', '.join(NAMES[f] for f in missing) + tr('. Check applicability, whether an answer exists and the table join. Missingness alone does not prove an error [RESIDUAL-RULES].'))
     if nonpositive:
-        statements.append('Нулевое или отрицательное значение: ' + ', '.join(NAMES[f] for f in nonpositive) + '. '
-                          'Проверьте кодирование, применимость и первичный источник; автоматическая замена не обоснована [RESIDUAL-RULES].')
+        statements.append(tr('Zero or negative value: ') + ', '.join(NAMES[f] for f in nonpositive) + tr('. Check coding, applicability and the original source. Automatic replacement is not justified [RESIDUAL-RULES].'))
     if 'fractional_rooms' in signals or (parsed['KOL_K'] is not None and parsed['KOL_K'] % 1 != 0):
-        statements.append(f'Указано дробное число комнат: {_fmt(parsed["KOL_K"])}. '
-                          'Сверьте запись и способ кодирования числа жилых комнат [D006-ROOMS]. '
-                          'Округление без первичного источника не обосновано.')
+        statements.append(f"{tr('Fractional room count: ')}{_fmt(parsed['KOL_K'])}{tr('. Check the record and room-count coding [D006-ROOMS]. Rounding without the original source is not justified.')}")
         source_ids.append('D006-ROOMS')
     if 'roster_size' in signals:
         declared = record.get('declared_household_sizes') or []
-        declared_text = ', '.join(_fmt(value) for value in declared) if declared else 'не указано'
-        statements.append(f'По строкам D008 рассчитано членов домохозяйства: {_fmt(parsed["household_size"])}; '
-                          f'значения KOL_CHL в карточке: {declared_text}. '
-                          'Проверьте полноту состава, пропуски и согласованность заявленного количества. '
-                          'Этот диагностический сигнал не определяет, какую строку нужно добавить или удалить [RESIDUAL-RULES].')
+        declared_text = ', '.join(_fmt(value) for value in declared) if declared else tr('not specified')
+        statements.append(f"{tr('Member count from D008 rows: ')}{_fmt(parsed['household_size'])}{tr('; KOL_CHL values: ')}{declared_text}{tr('. Check roster completeness, missing values and declared size. This signal cannot determine which row to add or remove [RESIDUAL-RULES].')}")
     if link_issue:
-        statements.append('Сначала проверьте ключи и состав домохозяйства в D008: NOMER обозначает домохозяйство, '
-                          'NOMP — порядковый номер, KOL_CHL — число членов [D008-FIELDS]. '
-                          'Соединение таблиц жилищного профиля допустимо в пределах одного года [TUTORIAL-KEYS].')
+        statements.append(tr('Check D008 keys and members first: NOMER identifies a household, NOMP a member, and KOL_CHL the declared size [D008-FIELDS]. Join tables within one year only [TUTORIAL-KEYS].'))
         source_ids += ['D008-FIELDS', 'TUTORIAL-KEYS']
     if statistical:
-        label = 'моделью Isolation Forest' if kind == 'ml' else 'статистическим ранжированием'
-        statements.append(f'Запись отобрана {label} для просмотра. Необычность относительно текущего массива '
-                          'может быть допустимым случаем и не подтверждает ошибку [RESIDUAL-METHOD].')
+        label = tr('by Isolation Forest') if kind == 'ml' else tr('by statistical ranking')
+        statements.append(f"{tr('Record selected ')}{label}{tr(' for review. An unusual record may be valid; it is not a confirmed error [RESIDUAL-METHOD].')}")
         percentile = _number(record.get('percentile', record.get('ml_percentile' if kind == 'ml' else 'robust_percentile')))
         if percentile is not None:
-            statements.append(f'Процентиль оценки: {_fmt(percentile)}. Это относительная позиция в массиве, '
-                              'а не вероятность ошибки [RESIDUAL-METHOD].')
+            statements.append(f"{tr('Score percentile: ')}{_fmt(percentile)}{tr('. This is a relative position in the input, not an error probability [RESIDUAL-METHOD].')}")
         for item in (record.get('evidence') or [])[:3]:
             if not isinstance(item, dict):
                 continue
@@ -158,64 +147,51 @@ def assist_case(record: dict, action: str = 'explain', question: str = '') -> di
             if field not in NAMES or _number(item.get('value')) is None:
                 continue
             if all(_number(item.get(key)) is not None for key in ('q25', 'q75', 'median')):
-                statements.append(f'{NAMES[field]}: {_fmt(item["value"])}{UNITS.get(field, "")}; '
-                                  f'медиана сравнения {_fmt(item["median"])}, центральные 50% значений '
-                                  f'{_fmt(item["q25"])}–{_fmt(item["q75"])}. Это описание массива, '
-                                  'а не допустимый норматив или доказательство причины сигнала модели [RESIDUAL-METHOD].')
+                statements.append(f"{NAMES[field]}: {_fmt(item['value'])}{UNITS.get(field, '')}{tr('; reference median ')}{_fmt(item['median'])}{tr(', middle 50% of values ')}{_fmt(item['q25'])}–{_fmt(item['q75'])}{tr('. This describes the input, not a normative limit or a causal explanation of the model signal [RESIDUAL-METHOD].')}")
         source_ids.append('RESIDUAL-METHOD')
     if not statements:
-        statements.append('По переданным значениям противоречие площадей, пропуск или неположительное значение не установлены. '
-                          'Это не полная гарантия качества: помощник проверяет только доступный контекст случая.')
+        statements.append(tr('The supplied context shows no area contradiction, missing or nonpositive value. This is not a complete quality guarantee; only the available case context was checked.'))
     if parsed['KOL_K'] is not None:
         source_ids.append('D006-ROOMS')
     if parsed['household_size'] is not None:
         source_ids.append('D008-FIELDS')
     steps = [
-        'Сверьте выделенные поля и код домохозяйства с первичным источником и применимостью вопроса.',
-        'При необходимости подготовьте уточнение ответственному специалисту по установленному в организации процессу.',
-        'Зафиксируйте решение и основание. При исправлении данных загрузите уточнённый пакет для повторной проверки.',
+        tr('Check the highlighted fields, household key and question applicability against the original source.'),
+        tr("If needed, ask the responsible specialist for clarification using your organization's process."),
+        tr('Record the decision and rationale. Upload a revised package to recheck corrected data.'),
     ]
     if statistical and not area_conflict and not missing and not nonpositive:
-        steps.insert(1, 'Если редкое значение подтверждено первичным источником, сохраните решение «Допустимо» и пояснение.')
+        steps.insert(1, tr('If the original source confirms a rare value, save Accepted with an explanation.'))
     response = {
-        'title': 'Разбор случая', 'answer': '\n\n'.join(statements), 'steps': steps,
+        'title': tr('Case explanation'), 'answer': '\n\n'.join(statements), 'steps': steps,
         'sources': [_record_source(record)] + [deepcopy(SOURCES[s]) for s in dict.fromkeys(source_ids)],
         'mode': 'local_evidence', 'action': action, 'version': SOURCE_VERSION,
-        'disclosure': 'Локальное объяснение рассчитанных фактов и правил проекта. Без генеративной модели и внешней передачи данных.',
+        'disclosure': tr('Local explanation of calculated facts and project rules. No generative model or external transmission.'),
     }
     if action == 'source':
-        response['title'] = 'Основания проверки'
-        response['answer'] = ('Определения полей описаны в схеме входных данных Residual. '
-                              'Отдельно отмечены правила проекта и описание метода; они не являются ведомственным регламентом.\n\n'
+        response['title'] = tr('Review evidence')
+        response['answer'] = (tr('Field definitions are in the Residual input schema. Project rules and methods are identified separately; they are not an official validation standard.\n\n')
                               + response['answer'])
     elif action == 'request':
-        response['title'] = 'Черновик запроса на сверку'
-        lines = [f'Просьба сверить запись {_text(record.get("id", "без идентификатора"), 100)} по первичному источнику.']
+        response['title'] = tr('Review request draft')
+        lines = [f"{tr('Please check record ')}{_text(record.get('id', tr('no identifier')), 100)}{tr(' against the original source.')}"]
         if area_conflict:
-            lines.append(f'В D006 указаны общая площадь {_fmt(total)} м² и жилая площадь {_fmt(living)} м². '
-                         'Жилая площадь превышает общую. Просьба уточнить оба значения и единицу измерения.')
+            lines.append(f"{tr('D006 reports total area ')}{_fmt(total)}{tr(' m² and living area ')}{_fmt(living)}{tr(' m². Living area exceeds total area. Confirm both values and the unit.')}")
         if 'roster_size' in signals:
-            lines.append(f'В D008 по строкам домохозяйства рассчитано членов: {_fmt(parsed["household_size"])}; '
-                         f'значения KOL_CHL в карточке: {declared_text}. '
-                         'Просьба сверить полноту состава и заявленное число членов, подтвердить значения '
-                         'или предоставить уточнение с основанием. По этому сигналу нельзя определить, '
-                         'какую строку нужно добавить или удалить.')
+            lines.append(f"{tr('Member count calculated from D008: ')}{_fmt(parsed['household_size'])}{tr('; KOL_CHL values: ')}{declared_text}{tr('. Check roster completeness and declared size. Confirm values or provide a justified correction. This signal does not identify which row to add or remove.')}")
         if statistical:
-            lines.append('Запись выделена как статистически необычная. Это не означает, что ответ ошибочен. '
-                         'Просьба подтвердить значения или предоставить уточнение.')
+            lines.append(tr('This record is statistically unusual. That does not mean it is wrong. Confirm the values or provide a justified correction.'))
         elif not area_conflict and 'roster_size' not in signals:
-            lines.append('Просьба уточнить применимость вопросов, наличие значений и корректность связи D006 с D008.')
+            lines.append(tr('Check question applicability, available values and the D006–D008 join.'))
         lines.append('; '.join(f'{NAMES[f]}: {_fmt(values.get(f))}{UNITS.get(f, "")}' for f in parsed) + '.')
-        lines.append('Источник записи: ' + _record_source(record)['locator'] + '.')
-        lines.append('По имеющимся данным правильное значение не установлено. Просьба указать основание подтверждения или уточнения.')
+        lines.append(tr('Record source: ') + _record_source(record)['locator'] + '.')
+        lines.append(tr('The available evidence does not establish the correct value. Provide a basis for confirmation or correction.'))
         response['draft'] = '\n\n'.join(lines)
-        response['answer'] = 'Черновик подготовлен по данным выбранного случая. Проверьте его перед использованием. Ничего не отправлено.'
+        response['answer'] = tr('Drafted from this case. Review before use. Nothing has been sent.')
     elif action == 'correction':
-        response.update(title='Нужно подтверждение первичного значения',
-                        answer='По сигналу нельзя определить правильное значение. Помощник не изменяет запись и не придумывает исправление. '
-                               'Сначала сверьте первичный источник, затем зафиксируйте решение специалиста.', steps=steps[:1])
+        response.update(title=tr('Original value needs confirmation'),
+                        answer=tr("The signal cannot establish the correct value. The assistant neither changes records nor invents corrections. Check the original source, then record a specialist's decision."), steps=steps[:1])
     elif action == 'unsupported':
-        response.update(title='Вопрос вне контекста случая',
-                        answer='Помощник работает только с выбранной записью: объясняет сигнал, показывает основания и готовит запрос на сверку. '
-                               'Для этого вопроса проверенного ответа в доступном контексте нет.', steps=[])
+        response.update(title=tr('Question outside this case'),
+                        answer=tr('The assistant only explains the selected record, shows evidence and drafts a review request. No verified answer is available for this question in the current context.'), steps=[])
     return response

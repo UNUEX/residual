@@ -146,7 +146,7 @@ class ExcelImportTests(unittest.TestCase):
         preview = inspect_file("book.xlsx", content)
         self.assertTrue(preview["tables"][1]["warnings"])
         self.assertEqual(read_table("book.xlsx", content, "sheet:0")["rows"][0][0], "0001")
-        with self.assertRaisesRegex(ImportError, "формулы"):
+        with self.assertRaisesRegex(ImportError, "formulas"):
             read_table("book.xlsx", content, "sheet:1")
 
     def test_merged_and_error_cells_blocked(self):
@@ -171,9 +171,9 @@ class ExcelImportTests(unittest.TestCase):
         preview = inspect_file("book.xls", content)
         self.assertEqual([t["label"] for t in preview["tables"]], ["Data", "Formula", "Merged"])
         self.assertEqual(read_table("book.xls", content, "sheet:0")["rows"], [["0001", "12.5"], ["0002", "20"]])
-        with self.assertRaisesRegex(ImportError, "формулы"):
+        with self.assertRaisesRegex(ImportError, "formulas"):
             read_table("book.xls", content, "sheet:1")
-        with self.assertRaisesRegex(ImportError, "объединённые"):
+        with self.assertRaisesRegex(ImportError, "Merged"):
             read_table("book.xls", content, "sheet:2")
 
     def test_xlsx_wrong_declared_dimensions_cannot_silently_drop_data(self):

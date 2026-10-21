@@ -9,7 +9,7 @@ Residual is a local application for people who need a clear, checkable summary o
 
 The result includes a chart, missing-value counts, method, source hashes and a standalone Python export. You can reproduce the calculation without a language model.
 
-**Early release.** The interface is currently in Russian. Documentation is in English. Windows has been tested locally; automated checks also run on Linux. This is a single-user application served on your own computer.
+**Early release.** English is the default interface language. Kazakh, Korean and Simplified Chinese are available from the language selector. Your selection is remembered in your browser; imported text and column names stay unchanged. Documentation is in English. Windows has been tested locally; automated checks also run on Linux. This is a single-user application served on your own computer.
 
 ![Residual home screen on a fresh local workspace](docs/home.jpg)
 
@@ -19,9 +19,9 @@ The result includes a chart, missing-value counts, method, source hashes and a s
 
 1. Install [Python 3.11–3.13](https://www.python.org/downloads/); enable **Add Python to PATH**.
 2. [Download the source ZIP](https://github.com/UNUEX/residual/archive/refs/heads/main.zip), extract it, and open `start_residual.cmd`.
-3. Open `setup_local_ai.cmd` once to install the portable Ollama runtime and `qwen3:1.7b`. This downloads the model to your computer. You can instead configure an existing Ollama installation or a compatible model API in **Модель**.
-4. Open [localhost:8766](http://127.0.0.1:8766/), select **Попробовать пример**, and open the sample Excel table. Confirm the column descriptions, then ask for a mean by school type.
-5. Review the proposed operation and columns, then select **Подтвердить и рассчитать**. Open the report to inspect or export the result.
+3. Open `setup_local_ai.cmd` once to install the portable Ollama runtime and `qwen3:1.7b`. This downloads the model to your computer. You can instead configure an existing Ollama installation or a compatible model API in **Model**.
+4. Open [localhost:8766](http://127.0.0.1:8766/), select **Try an example**, and open the sample Excel table. Confirm the column descriptions, then ask for the mean of Students by School type.
+5. Review the proposed operation and columns, then select **Approve and calculate**. Open the report to inspect or export the result.
 
 Initial dependency and model installation needs internet access. Subsequent local inference has no per-request API fee; it uses your computer's memory, processor and electricity. External API charges depend on your provider. Close the application with `stop_residual.cmd`.
 
@@ -65,7 +65,7 @@ The optional `/housing/` and `/quality/` modules provide fixed-schema housing ca
 
 ## Reproduce a result
 
-Download **Python** and **CSV для Python** from the same report:
+Download **Python script** and **CSV for Python** from the same report:
 
 ```sh
 python reproduce_table.py source.csv > result.json
@@ -80,9 +80,9 @@ python -m pip install -r requirements.txt
 python -m unittest discover -s tests -v
 ```
 
-The automated suite uses invented fixtures and does not download a model. Optional MCP tests require `requirements-mcp.txt`. Live model regression checks are separate from unit tests and do not establish general model accuracy.
+The automated suite uses invented fixtures and does not download a model. Run `node --test tests/i18n.test.cjs` to check catalogue coverage, language switching and preservation of user text. Optional MCP tests require `requirements-mcp.txt`. Live model regression checks are separate from unit tests and do not establish general model accuracy.
 
-Bug reports, documentation improvements and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing a change. Useful starting areas include English interface localization, accessibility, import edge cases and clearer analysis-plan validation. See the [roadmap](docs/ROADMAP.md).
+Bug reports, documentation improvements and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing a change. Useful starting areas include native-speaker translation review, accessibility, import edge cases and clearer analysis-plan validation. See the [roadmap](docs/ROADMAP.md).
 
 If Residual is useful to you, a star helps others discover it. Please report problems as well; feedback from actual use is more useful than a download count.
 

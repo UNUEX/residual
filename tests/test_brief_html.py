@@ -71,7 +71,7 @@ class BriefHtmlTests(unittest.TestCase):
         self.assertIsNone(rows[3].find("s:rect", NS))
         self.assertIsNone(rows[3].find("s:circle", NS))
         self.assertEqual([row.find("s:text[@class='chart-value']", NS).text for row in rows],
-                         ["-10", "20", "0", "нет данных"])
+                         ["-10", "20", "0", "no data"])
         self.assertEqual(report, original, "Rendering must not alter the calculated report")
 
     def test_one_sided_series_keep_zero_at_the_correct_edge(self):
@@ -90,7 +90,7 @@ class BriefHtmlTests(unittest.TestCase):
                 self.assertEqual(len(svg.findall("s:g", NS)), 2)
                 self.assertTrue(math.isfinite(float(svg.find("s:line", NS).attrib["x1"])))
                 labels = [element.text for element in svg.findall(".//s:text[@class='chart-value']", NS)]
-                self.assertEqual(labels, ["0", "0"] if expected_points else ["нет данных", "нет данных"])
+                self.assertEqual(labels, ["0", "0"] if expected_points else ["no data", "no data"])
 
     def test_chart_for_each_metric_uses_real_values_and_escaped_units(self):
         report = example_report([12.5, -3], metrics=["c1", "c2"])
@@ -99,7 +99,7 @@ class BriefHtmlTests(unittest.TestCase):
         document = TabularService._html(report)
         svgs = charts(document)
         self.assertEqual(len(svgs), 2)
-        self.assertEqual(svgs[0].find(".//s:text[@class='chart-value']", NS).text, "12,5")
+        self.assertEqual(svgs[0].find(".//s:text[@class='chart-value']", NS).text, "12.5")
         self.assertEqual(svgs[1].find(".//s:text[@class='chart-value']", NS).text, "99")
         self.assertIn(report["formulas"]["c2"]["unit"], svgs[1].find("s:title", NS).text)
         parser = Elements()
@@ -137,17 +137,17 @@ class BriefHtmlTests(unittest.TestCase):
                     self.assertTrue(math.isfinite(float(element.attrib[attribute])), element.attrib)
         self.assertAlmostEqual(float(svg.find("s:line", NS).attrib["x1"]), 485)
 
-    def test_synthetic_heading_russian_methodology_and_calculated_summary(self):
+    def test_synthetic_heading_english_methodology_and_calculated_summary(self):
         report = example_report([1, 2])
         report["dataset"]["synthetic_data"] = True
-        for operation, method in (("mean", "Среднее: сумма пригодных значений"),
-                                  ("median", "Медиана: середина упорядоченного ряда"),
-                                  ("sum", "Сумма: все пригодные значения складываются")):
+        for operation, method in (("mean", "Mean: sum of valid values"),
+                                  ("median", "Median: the middle sorted valid value"),
+                                  ("sum", "Sum: all valid values added together")):
             with self.subTest(operation=operation):
                 report["plan"]["aggregation"] = operation
                 document = TabularService._html(report)
-                self.assertIn("Учебные или синтетические данные", document)
-                self.assertIn("не являются официальными оценками населения", document)
+                self.assertIn("Sample or synthetic data", document)
+                self.assertIn("not official population estimates", document)
                 self.assertIn(method, document)
                 self.assertIn(report["summary"][0], document)
                 self.assertNotIn("sum(valid values)", document)

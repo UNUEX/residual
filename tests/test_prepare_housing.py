@@ -56,8 +56,8 @@ class HousingPreparationTests(unittest.TestCase):
                 roster += f"H{size};{person};{size};2024\n"
         rows, audit = prepare(housing, roster)
         self.assertEqual([row[GROUP] for row in rows],
-                         ["1–2 человека"] * 2 + ["3–4 человека"] * 2 + ["5+ человек"] * 2)
-        self.assertEqual(audit["group_counts"], {"1–2 человека": 2, "3–4 человека": 2, "5+ человек": 2})
+                         ["1–2 people"] * 2 + ["3–4 people"] * 2 + ["5+ people"] * 2)
+        self.assertEqual(audit["group_counts"], {"1–2 people": 2, "3–4 people": 2, "5+ people": 2})
 
     def test_saved_audit_hashes_actual_bytes_and_omits_identifiers_and_host_paths(self):
         with tempfile.TemporaryDirectory() as directory:

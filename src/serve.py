@@ -1,4 +1,7 @@
 """Local Residual workspace. Run: python -m src.serve --port 8766."""
+
+from .localization import tr
+
 import argparse
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -8,11 +11,35 @@ from .service import Workspace
 from .research import ResearchService, ResearchError
 from .model_provider import ProviderError
 from .tabular import TabularService
+from .localization import using_language, get_language, translate_owned
+from http.cookies import SimpleCookie
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_BODY = 18 * 1024 * 1024
 
 class Handler(BaseHTTPRequestHandler):
+    def request_language(self):
+        query = parse_qs(urlparse(self.path).query)
+        if 'lang' in query:
+            return query['lang'][0]
+        if self.headers.get('X-Residual-Language'):
+            return self.headers['X-Residual-Language']
+        try:
+            cookie = SimpleCookie(self.headers.get('Cookie', ''))
+            if 'residual_language' in cookie:
+                return cookie['residual_language'].value
+        except Exception:
+            pass
+        return self.headers.get('Accept-Language', 'en')
+
+    def do_GET(self):
+        with using_language(self.request_language()):
+            return self._do_GET()
+
+    def do_POST(self):
+        with using_language(self.request_language()):
+            return self._do_POST()
+
     @property
     def workspace(self):
         return self.server.workspace
@@ -27,6 +54,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def reply(self, code, data, content_type='application/json; charset=utf-8', filename=None):
         raw = data if isinstance(data, bytes) else json.dumps(data, ensure_ascii=False, allow_nan=False).encode('utf-8')
+        if isinstance(data, bytes) and content_type.startswith('text/html'):
+            raw = raw.replace(b'<html lang="en">', ('<html lang="' + get_language() + '">').encode('ascii'), 1)
         self.send_response(code)
         for name, value in [('Content-Type', content_type), ('Cache-Control', 'no-store'),
                             ('X-Content-Type-Options', 'nosniff'), ('Referrer-Policy', 'no-referrer'),
@@ -41,15 +70,20 @@ class Handler(BaseHTTPRequestHandler):
     def valid_host(self):
         return self.headers.get('Host') in {f'127.0.0.1:{self.server.server_port}', f'localhost:{self.server.server_port}'}
 
-    def do_GET(self):
+    def _do_GET(self):
         if not self.valid_host():
-            return self.reply(403, {'error': 'Доступ только через локальный адрес.'})
+            return self.reply(403, {'error': tr('Access is allowed only through a local address.')})
         parsed = urlparse(self.path)
         path, query = parsed.path, parse_qs(parsed.query)
         run_id = query.get('run_id', [None])[0]
         try:
+            if path == '/locales.js':
+                catalogues = {language: json.loads((ROOT / 'app' / 'locales' / (language + '.json')).read_text(encoding='utf-8'))
+                              for language in ('en', 'kk', 'ko', 'zh-CN')}
+                content = ('window.RESIDUAL_LOCALES = ' + json.dumps(catalogues, ensure_ascii=False) + ';').encode('utf-8')
+                return self.reply(200, content, 'text/javascript; charset=utf-8')
             if path == '/api/health':
-                return self.reply(200, {'ok': True, 'app': 'residual', 'version': '0.4',
+                return self.reply(200, {'ok': True, 'app': 'residual', 'version': '0.5',
                                         'mode': 'local', 'assistant_mode': 'validated_research', 'table_import': True})
             if path == '/api/tables/state':
                 return self.reply(200, self.tables.state())
@@ -86,6 +120,7 @@ class Handler(BaseHTTPRequestHandler):
                 name, mime = import_examples[path]
                 return self.reply(200, (ROOT / 'examples' / 'import' / name).read_bytes(), mime, name)
             assets = {'/': ('tables.html', 'text/html'), '/housing/': ('index.html', 'text/html'),
+                      '/i18n.js': ('i18n.js', 'text/javascript'), '/i18n.css': ('i18n.css', 'text/css'),
                       '/tables.js': ('tables.js', 'text/javascript'), '/tables.css': ('tables.css', 'text/css'),
                       '/workspace.css': ('workspace.css', 'text/css'),
                       '/app.js': ('app.js', 'text/javascript'), '/style.css': ('style.css', 'text/css'),
@@ -96,31 +131,31 @@ class Handler(BaseHTTPRequestHandler):
                 name, mime = assets[path]
                 content_type = mime if mime.startswith('image/') else mime + '; charset=utf-8'
                 return self.reply(200, (ROOT / 'app' / name).read_bytes(), content_type)
-            return self.reply(404, {'error': 'Страница не найдена.'})
+            return self.reply(404, {'error': tr('Page not found.')})
         except ProviderError as exc:
             return self.reply(502, {'error': str(exc)})
         except (ValueError, ResearchError) as exc:
             return self.reply(400, {'error': str(exc)})
         except Exception as exc:
             self.log_error('Unhandled GET error: %s', type(exc).__name__)
-            return self.reply(500, {'error': 'Не удалось прочитать локальные данные. Проверьте журнал сервера.'})
+            return self.reply(500, {'error': tr('Cannot read local data. Check the server log.')})
 
-    def do_POST(self):
+    def _do_POST(self):
         if not self.valid_host():
-            return self.reply(403, {'error': 'Доступ только через локальный адрес.'})
+            return self.reply(403, {'error': tr('Access is allowed only through a local address.')})
         origin = self.headers.get('Origin')
         allowed = {f'http://127.0.0.1:{self.server.server_port}', f'http://localhost:{self.server.server_port}'}
         if origin and origin not in allowed:
-            return self.reply(403, {'error': 'Запрос пришёл с другого сайта.'})
+            return self.reply(403, {'error': tr('The request came from another site.')})
         if self.headers.get('Content-Type', '').split(';')[0].strip() != 'application/json':
-            return self.reply(415, {'error': 'Ожидается JSON-запрос.'})
+            return self.reply(415, {'error': tr('A JSON request is required.')})
         try:
             size = int(self.headers.get('Content-Length', '0'))
             if not 0 < size <= MAX_BODY:
-                return self.reply(413, {'error': 'Превышен размер запроса. Для импорта одной таблицы выберите файл до 10 МБ.'})
+                return self.reply(413, {'error': tr('Request too large. Import one table up to 10 MiB.')})
             body = json.loads(self.rfile.read(size))
             if not isinstance(body, dict):
-                raise ValueError('Ожидается объект запроса.')
+                raise ValueError(tr('A request object is required.'))
             routes = {'/api/tables/inspect': self.tables.inspect, '/api/tables/preview': self.tables.preview,
                       '/api/tables/register': self.tables.register, '/api/tables/plan': self.tables.plan,
                       '/api/tables/execute': self.tables.execute,
@@ -135,7 +170,7 @@ class Handler(BaseHTTPRequestHandler):
                       '/api/research/execute': self.research.execute}
             route = routes.get(urlparse(self.path).path)
             if route is None:
-                return self.reply(404, {'error': 'Действие не найдено.'})
+                return self.reply(404, {'error': tr('Action not found.')})
             return self.reply(200, route(body))
         except ProviderError as exc:
             return self.reply(502, {'error': str(exc)})
@@ -143,7 +178,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(400, {'error': str(exc)})
         except Exception as exc:
             self.log_error('Unhandled POST error: %s', type(exc).__name__)
-            return self.reply(500, {'error': 'Не удалось выполнить действие. Проверьте журнал сервера.'})
+            return self.reply(500, {'error': tr('Action failed. Check the server log.')})
 
 def make_server(port=8766, root=ROOT, data_dir=None):
     server = ThreadingHTTPServer(('127.0.0.1', port), Handler)

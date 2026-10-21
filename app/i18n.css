@@ -1,0 +1,12 @@
+body,input,select,textarea,button{font-family:Inter,"Segoe UI","Noto Sans","Malgun Gothic","Microsoft YaHei",Arial,sans-serif}
+.language-switcher{display:flex;flex-shrink:0;align-items:center;gap:8px;margin-left:auto;font-size:11px;color:var(--muted,#61675e)}
+.language-switcher select{font:inherit;font-size:12px;color:var(--ink,#20291f);background:rgba(255,255,255,.5);border:1px solid rgba(70,80,65,.18);border-radius:24px;padding:9px 26px 9px 12px;max-width:138px;cursor:pointer}
+.language-switcher select:focus-visible{outline:2px solid #5c7350;outline-offset:3px}
+.language-switcher>span{white-space:nowrap}
+.header .model-trigger{margin-left:12px}
+.header{gap:14px}.topbar .language-switcher{margin-left:16px}
+html[lang="ko"] body{word-break:keep-all;overflow-wrap:anywhere}
+html[lang="zh-CN"] .home-copy h1,html[lang="ko"] .home-copy h1{line-height:1.22;letter-spacing:-.04em}
+html[lang="kk"] .home-copy h1{font-size:clamp(42px,5vw,76px)}
+@media(max-width:1000px){.header-location{display:none}.language-switcher>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.header .model-trigger{margin-left:0}}
+@media(max-width:600px){.language-switcher select{max-width:112px;padding:8px;font-size:11px}.header .model-trigger small{display:none}.header{gap:8px;flex-wrap:wrap}.language-switcher{margin-left:auto}.home-copy h1{overflow-wrap:anywhere}.topbar{flex-wrap:wrap}}

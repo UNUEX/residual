@@ -116,7 +116,7 @@ class ResearchTests(unittest.TestCase):
 
     def test_malformed_quoted_csv_is_rejected_without_repairing_values(self):
         for value in ('"6"0', '"60'):
-            with self.subTest(value=value), self.assertRaisesRegex(ResearchError, "повреждён"):
+            with self.subTest(value=value), self.assertRaisesRegex(ResearchError, "malformed"):
                 self.service.upload({'housing_csv': 'NOMER,OB_PL,J_PL,KOL_K\n001,' + value + ',30,2\n',
                                      'roster_csv': 'NOMER,NOMP\n001,1\n'})
 
@@ -125,7 +125,7 @@ class ResearchTests(unittest.TestCase):
             plan = self.service.plan({"dataset_id": self.dataset["id"], "question": QUESTION})
         source = self.service.root / "datasets" / self.dataset["id"] / "d006.csv"
         source.write_text(HOUSING.replace("60", "61"), encoding="utf-8")
-        with self.assertRaisesRegex(ResearchError, "изменился"):
+        with self.assertRaisesRegex(ResearchError, "changed"):
             self.service.execute({"plan_id": plan["id"]})
         with self.assertRaises(ResearchError):
             self.service.report("../../provider")
@@ -224,14 +224,14 @@ class ProviderTests(unittest.TestCase):
         for remote in ({"remote_host": "https://ollama.com"}, {"remote_model": "cloud-upstream"}):
             with self.subTest(remote=remote), patch.object(provider, "_request", side_effect=[
                     {"version": "0.40.3"}, {"models": [{"name": "office:latest", **remote}]}]) as call:
-                with self.assertRaisesRegex(ProviderError, "удалённую"):
+                with self.assertRaisesRegex(ProviderError, "remote model"):
                     provider.propose("PRIVATE QUESTION", "catalog", {})
                 self.assertEqual(call.call_count, 2)
                 self.assertNotIn("PRIVATE QUESTION", str(call.call_args_list))
         with patch.object(provider, "_request", side_effect=[
                 {"version": "0.40.3"}, {"models": [{"name": "office:latest"}]},
                 {"details": {}, "model_info": {}, "remote_host": "https://ollama.com"}]) as call:
-            with self.assertRaisesRegex(ProviderError, "удалённую"):
+            with self.assertRaisesRegex(ProviderError, "remote model"):
                 provider.propose("PRIVATE QUESTION", "catalog", {})
             self.assertEqual(call.call_count, 3)
             self.assertNotIn("PRIVATE QUESTION", str(call.call_args_list))
@@ -279,7 +279,7 @@ class ProviderTests(unittest.TestCase):
         with patch.object(provider, "_request", side_effect=[
                 {"version": "0.40.3"}, {"models": []}, {"details": {}, "model_info": {}},
                 {"message": {"content": json.dumps(READY)}, "remote_host": "https://ollama.com"}]):
-            with self.assertRaisesRegex(ProviderError, "удалённом выполнении"):
+            with self.assertRaisesRegex(ProviderError, "remote execution"):
                 provider.propose(QUESTION, "catalog", {})
 
 
